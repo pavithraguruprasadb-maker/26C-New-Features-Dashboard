@@ -1454,7 +1454,7 @@ elif selected_report == "1️⃣1️⃣  Issues Tracker — Pillar & CDL Wise":
     st.markdown("---")
     st.markdown('<div class="section-header">🔴 Features Requiring D01 / D02 Pod</div>', unsafe_allow_html=True)
 
-    df_pod = df_r11[df_r11['Issue Resolution Outcome'].str.strip().str.lower().isin(
+    df_pod = df_r11[df_r11['Issue Resolution Outcome'].fillna('').str.strip().str.lower().isin(
         ['required d01 pod', 'requires d01 pod', 'required d02 pod', 'requires d02 pod']
     )].copy()
 
