@@ -1942,7 +1942,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         nf_released    = len(cdl_orig[(cdl_orig['Final Overall Status'] == 'Released (A)') & (cdl_orig['Feature Category'] != 'Unboxing')])
         unbox_released = len(cdl_orig[(cdl_orig['Final Overall Status'] == 'Released (A)') & (cdl_orig['Feature Category'] == 'Unboxing')])
         dropped  = len(cdl_orig[cdl_orig['Final Overall Status'] == 'Feature Dropped'])
-        sr_count = len(cdl_orig[cdl_orig[sr_col].str.contains('SR raised', case=False, na=False)]) if sr_col in cdl_orig.columns else 0
+        sr_count = len(cdl_orig[cdl_orig[sr_col].fillna('').str.contains('SR raised', case=False, na=False)]) if sr_col in cdl_orig.columns else 0
 
         days_worked = max(int(np.busday_count(start_date.date(), end_date.date())), 1) if pd.notna(start_date) and pd.notna(end_date) else 0
 
