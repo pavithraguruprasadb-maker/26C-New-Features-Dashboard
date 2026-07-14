@@ -1823,7 +1823,7 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
         buf = io.BytesIO(); wb.save(buf); return buf.getvalue()
     excel_data = generate_exec_excel(df_final, ga_base_ts_r13, sorted_tier_nums)
     st.download_button("⬇️ Download 26C Release Dashboard (Excel)", excel_data, "26C_Release_Dashboard.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    # ─────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # REPORT 14: Daily CDL Status Report
 # ─────────────────────────────────────────────
 elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
@@ -1961,7 +1961,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         else:
             days_elapsed = 0
 
-        # ── FIX: is_feature_blocked defined FIRST so is_feature_completed can use it ──
+        # ── is_feature_blocked defined FIRST so is_feature_completed can use it ──
         def is_feature_blocked(frow):
             issue_type_val   = str(frow.get('Type of Issue', '') or '').strip()
             issue_detail_val = str(frow.get('Details of the Issue faced ', '') or '').strip()
@@ -1974,7 +1974,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 (resolution_val   in blocked_resolution_values)
             )
 
-        # ── FIX: Combined Bundled NF with active issue is NOT treated as complete ──
+        # ── Combined Bundled NF with active issue is NOT treated as complete ──
         def is_feature_completed(frow):
             fc   = str(frow.get(fc_col, '') or '').strip()
             vrd  = frow.get('Video Ready Date', None)
@@ -2016,11 +2016,19 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             delayed_unbox_count = 0
         delayed_count = total_delayed
 
+        # ── FIX (status labels):
+        #    1. 'Complete' now means ALL features are actually done — not just "on pace".
+        #    2. If target_comp == 0 (recording started today / after a weekend, so nothing
+        #       is due yet), show 'In Progress (No videos due yet)' instead of a misleading
+        #       'Complete' with '✅ Completed: 0'.
+        #    3. Meeting the 3/day pace (but not fully done) is now labelled 'On Track'. ──
         if not pd.notna(start_date):                          feat_status_label = 'Recording Date Not Set'
         elif start_date > today_r14:                          feat_status_label = 'Yet To Start'
-        elif actual_total >= target_comp:                     feat_status_label = 'Complete'
+        elif total_count > 0 and actual_total >= total_count: feat_status_label = 'Complete'
+        elif target_comp == 0:                                feat_status_label = 'In Progress (No videos due yet)'
+        elif actual_total >= target_comp:                     feat_status_label = 'On Track'
         elif delayed_count == 0 and blocked_count > 0:        feat_status_label = 'On Track (Issues Blocking)'
-        elif delayed_count == 0:                              feat_status_label = 'Complete'
+        elif delayed_count == 0:                              feat_status_label = 'On Track'
         else:                                                 feat_status_label = 'Delayed'
 
         def fmt_completed():
@@ -2046,10 +2054,11 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 return f'🔴 Delayed: {delayed_unbox_count} Unboxing'
             return ''
 
-        if feat_status_label in ['Recording Date Not Set', 'Yet To Start']:
+        # ── FIX: handle the new labels in the display string ──
+        if feat_status_label in ['Recording Date Not Set', 'Yet To Start', 'In Progress (No videos due yet)']:
             feat_status = feat_status_label
-        elif feat_status_label == 'Complete':
-            feat_status = f'Complete\n{fmt_completed()}'
+        elif feat_status_label in ['Complete', 'On Track']:
+            feat_status = f'{feat_status_label}\n{fmt_completed()}'
         elif feat_status_label == 'On Track (Issues Blocking)':
             parts = [fmt_completed()]
             blocked_str = fmt_blocked()
@@ -2162,10 +2171,16 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             first_line = str(val).split('\n')[0].strip() if val else ''
             if first_line == 'Complete':
                 styles[idx] = 'color: #10b981; font-weight: bold; text-align: left; white-space: pre-wrap'
+            elif first_line == 'On Track':
+                # ── FIX: new 'On Track' label (meeting 3/day pace) ──
+                styles[idx] = 'color: #0ea5e9; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'Delayed':
                 styles[idx] = 'color: red; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'On Track (Issues Blocking)':
                 styles[idx] = 'color: #f59e0b; font-weight: bold; text-align: left; white-space: pre-wrap'
+            elif first_line == 'In Progress (No videos due yet)':
+                # ── FIX: new 'In Progress' label (recording just started, nothing due yet) ──
+                styles[idx] = 'color: #7c3aed; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'Yet To Start':
                 styles[idx] = 'color: #4f46e5; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'Recording Date Not Set':
@@ -2208,9 +2223,11 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
     st.markdown("""<div style="background-color:#f8f9fa; padding:10px 14px; border-radius:6px;
         border-left:4px solid #4f46e5; margin-top:8px; font-size:0.82rem; color:#444;">
         <b>📌 Feature Count Status Guide:</b><br>
-        <span style="color:#10b981; font-weight:bold;">● Complete</span> — CDL is on pace with the 3/day rule &nbsp;|&nbsp;
+        <span style="color:#10b981; font-weight:bold;">● Complete</span> — ALL assigned features are done &nbsp;|&nbsp;
+        <span style="color:#0ea5e9; font-weight:bold;">● On Track</span> — Meeting the 3/day pace (work still remaining) &nbsp;|&nbsp;
         <span style="color:#f59e0b; font-weight:bold;">● On Track (Issues Blocking)</span> — All unblocked features done; remaining blocked by issues/dropped &nbsp;|&nbsp;
         <span style="color:red; font-weight:bold;">● Delayed</span> — Features pending with no logged issue &nbsp;|&nbsp;
+        <span style="color:#7c3aed; font-weight:bold;">● In Progress (No videos due yet)</span> — Recording just started; first videos not yet due per 3/day rule &nbsp;|&nbsp;
         <span style="color:#4f46e5; font-weight:bold;">● Yet To Start</span> — Recording start date is in the future &nbsp;|&nbsp;
         <span style="color:#94a3b8; font-weight:bold;">● Recording Date Not Set</span> — No recording date entered
     </div>""", unsafe_allow_html=True)
@@ -2242,8 +2259,10 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'CX':  PatternFill('solid', start_color='FFF9C4')
         }
         complete_fill     = PatternFill('solid', start_color='C6EFCE')
+        on_track_pace_fill = PatternFill('solid', start_color='D9F2FB')   # ── FIX: fill for 'On Track' ──
         delayed_fill      = PatternFill('solid', start_color='FFC7CE')
         on_track_fill     = PatternFill('solid', start_color='FFEB9C')
+        in_progress_fill  = PatternFill('solid', start_color='EDE7F6')    # ── FIX: fill for 'In Progress' ──
         yet_to_start_fill = PatternFill('solid', start_color='DDEBF7')
         no_date_fill      = PatternFill('solid', start_color='F2F2F2')
         total_fill        = PatternFill('solid', start_color='D9D9D9')
@@ -2264,12 +2283,20 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                     if first_line == 'Complete':
                         cell.fill = complete_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='375623')
+                    elif first_line == 'On Track':
+                        # ── FIX: new 'On Track' label ──
+                        cell.fill = on_track_pace_fill
+                        cell.font = Font(name='Arial', size=9, bold=True, color='1F4E79')
                     elif first_line == 'Delayed':
                         cell.fill = delayed_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='9C0006')
                     elif first_line == 'On Track (Issues Blocking)':
                         cell.fill = on_track_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='7D4E00')
+                    elif first_line == 'In Progress (No videos due yet)':
+                        # ── FIX: new 'In Progress' label ──
+                        cell.fill = in_progress_fill
+                        cell.font = Font(name='Arial', size=9, bold=True, color='5B2C87')
                     elif first_line == 'Yet To Start':
                         cell.fill = yet_to_start_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='1F3864')
