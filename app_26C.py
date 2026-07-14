@@ -1167,10 +1167,24 @@ elif selected_report == "7️⃣  Unboxing Videos — Pillar & Product Wise":
             f'<div style="font-size:0.75rem; color:#94a3b8;">({ub_rel_yes} of {ub_yes_count} Training=Yes)</div>'
             f'</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    all_products   = df_r7_nf[['Pillar','Product']].drop_duplicates()
-    unbox_products = df_r7_unbox[['Pillar','Product']].drop_duplicates()
-    missing_unbox  = all_products.merge(unbox_products, on=['Pillar','Product'], how='left', indicator=True)
-    missing_unbox  = missing_unbox[missing_unbox['_merge'] == 'left_only'][['Pillar','Product']]
+    # ── FIX (missing-unboxing warning): the old merge compared Product strings
+    #    byte-for-byte, so a trailing space / double space / non-breaking space /
+    #    casing difference between NF rows and Unboxing rows made a product look
+    #    "missing" even though it appears in the detail table below.
+    #    We now match on a normalized key: strip, collapse internal whitespace,
+    #    replace non-breaking spaces, and compare case-insensitively. ──
+    def _norm_product_r7(x):
+        if pd.isna(x): return ''
+        return ' '.join(str(x).replace('\u00a0', ' ').split()).strip().lower()
+    all_products   = df_r7_nf[['Pillar', 'Product']].drop_duplicates().copy()
+    unbox_products = df_r7_unbox[['Pillar', 'Product']].drop_duplicates().copy()
+    all_products['_pkey']   = all_products['Product'].apply(_norm_product_r7)
+    unbox_products['_pkey'] = unbox_products['Product'].apply(_norm_product_r7)
+    missing_unbox = all_products.merge(
+        unbox_products[['Pillar', '_pkey']].drop_duplicates(),
+        on=['Pillar', '_pkey'], how='left', indicator=True
+    )
+    missing_unbox = missing_unbox[missing_unbox['_merge'] == 'left_only'][['Pillar', 'Product']]
     if len(missing_unbox) > 0:
         training_yes_count = df_r7_nf[df_r7_nf['Training Required? '] == 'Yes'].groupby(['Pillar', 'Product']).size().reset_index(name='Features (Training = Yes)')
         missing_unbox_table = missing_unbox.merge(training_yes_count, on=['Pillar', 'Product'], how='left')
@@ -1208,7 +1222,6 @@ elif selected_report == "7️⃣  Unboxing Videos — Pillar & Product Wise":
     detail = df_r7_unbox[detail_cols_available].reset_index(drop=True)
     st.dataframe(detail, use_container_width=True, column_config=col_config_compact(detail))
     st.download_button("⬇️ Download Unboxing Report", export_excel(detail), "report7_unboxing.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 # ─────────────────────────────────────────────
 # REPORT 8: Released Videos
 # ─────────────────────────────────────────────
