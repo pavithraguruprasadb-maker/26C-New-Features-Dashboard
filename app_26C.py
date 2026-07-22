@@ -1279,6 +1279,7 @@ elif selected_report == "8️⃣  Released Videos (incl. Unboxing)":
         ub_rel_pct     = round(ub_rel_yes / ub_yes_count * 100, 1) if ub_yes_count > 0 else 0.0
         nf_rel_color   = '#10b981' if nf_rel_pct >= 50 else '#ef4444'
         ub_rel_color   = '#10b981' if ub_rel_pct >= 50 else '#ef4444'
+        pg_dropped = len(pg_nf[pg_nf['Final Overall Status'] == 'Feature Dropped']) + len(pg_unbox[pg_unbox['Final Overall Status'] == 'Feature Dropped'])
         col.markdown(
             f'<div class="metric-card" style="border-left-color:#4f46e5; text-align:left; padding:1rem;">'
             f'<div style="font-size:1rem; font-weight:700; color:#1a1a2e; margin-bottom:0.5rem;">{pg}</div>'
@@ -1288,6 +1289,7 @@ elif selected_report == "8️⃣  Released Videos (incl. Unboxing)":
             f'<div style="font-size:0.78rem; color:#7c3aed;">Unboxing Released: <b>{unbox_released}</b></div>'
             f'<div style="font-size:0.78rem; font-weight:700; color:{ub_rel_color};">📦 Unboxing Release %: {ub_rel_pct}%</div>'
             f'<div style="font-size:0.72rem; color:#94a3b8;">({ub_rel_yes} of {ub_yes_count} Training=Yes Unboxing)</div>'
+            f'<div style="font-size:0.78rem; color:#ef4444;">🔻 Dropped: <b>{pg_dropped}</b></div>'
             f'</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
@@ -1625,6 +1627,9 @@ elif selected_report == "1️⃣2️⃣  GA+ Release":
         return styles
     styled_summary_box = summary_box_with_total.style.apply(style_summary_box, axis=1).hide(axis='index')
     st.dataframe(styled_summary_box, use_container_width=True, column_config=col_config_compact(summary_box_with_total))
+    dropped_r12 = len(df_r12_combined[df_r12_combined['Final Overall Status'] == 'Feature Dropped'])
+    if dropped_r12 > 0:
+        st.markdown(f'<div class="upload-note">🔻 <b>{dropped_r12} Training=Yes feature(s) are dropped</b> (status or Issue Resolution Outcome). They remain in the Release % denominator, so max achievable Release % is {round((total_training_yes - dropped_r12) / total_training_yes * 100, 1)}%.</div>', unsafe_allow_html=True)
     # Count Not Set features for the note
     not_set_count = len(df_r12_combined[df_r12_combined['Target Release Tier'] == 'Not Set'])
     st.markdown(f"""
