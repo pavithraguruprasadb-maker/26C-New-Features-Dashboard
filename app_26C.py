@@ -1355,7 +1355,24 @@ elif selected_report == "9️⃣  Feature Overall Status":
         for s in all_statuses:
             if s not in pivot.columns: pivot[s] = 0
         cols_present = [s for s in all_statuses if s in pivot.columns]
-        pivot = pivot[cols_present]; pivot['Total'] = pivot.sum(axis=1); pivot = pivot.reset_index()
+        pivot = pivot[cols_present]
+        pivot['Total'] = pivot.sum(axis=1)
+
+        # Training = Yes / TBD counts per pillar
+        tr_yes = df_src[df_src['Training Required? '] == 'Yes'].groupby('Pillar').size()
+        tr_tbd = df_src[df_src['Training Required? '] == 'TBD'].groupby('Pillar').size()
+        pivot['Training = Yes'] = pivot.index.map(lambda p: int(tr_yes.get(p, 0)))
+        pivot['Training = TBD'] = pivot.index.map(lambda p: int(tr_tbd.get(p, 0)))
+
+        # Pending = Total (Yes+TBD) − Released − Dropped
+        released = pivot['Released (A)'] if 'Released (A)' in pivot.columns else 0
+        dropped  = pivot['Feature Dropped'] if 'Feature Dropped' in pivot.columns else 0
+        pivot['Pending'] = pivot['Total'] - released - dropped
+
+        pivot = pivot.reset_index()
+        # Reorder: Pillar, training counts first, then statuses, then Total, Pending
+        ordered = ['Pillar', 'Training = Yes', 'Training = TBD'] + cols_present + ['Total', 'Pending']
+        pivot = pivot[[c for c in ordered if c in pivot.columns]]
         return add_total_row(pivot)
     def render_pivot_table(pivot_df):
         num_cols = [c for c in pivot_df.columns if c not in ['Pillar']]
