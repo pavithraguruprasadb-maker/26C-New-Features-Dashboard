@@ -1326,6 +1326,8 @@ elif selected_report == "9️⃣  Feature Overall Status":
         diff = (date - base).days; tier = ((diff - 1) // 7) + 1
         return f'GA+{tier}'
     df_r9 = df_filtered.copy()
+    df_r9['Training Required? '] = df_r9['Training Required? '].fillna('Not Set')
+    df_r9 = df_r9[df_r9['Training Required? '].isin(['Yes', 'TBD'])].copy()
     df_r9['Final Overall Status'] = df_r9['Final Overall Status'].fillna('Not Set')
     df_r9['CDL Name']             = df_r9['CDL Name'].fillna('Unassigned')
     for col in ['Recording Date', 'Video Ready Date', 'Actual Release Date']:
