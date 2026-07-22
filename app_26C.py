@@ -1319,6 +1319,7 @@ elif selected_report == "8️⃣  Released Videos (incl. Unboxing)":
 elif selected_report == "9️⃣  Feature Overall Status":
     st.markdown('<div class="section-header">Feature Count by Final Overall Status — Pillar Wise</div>', unsafe_allow_html=True)
     df_filtered = render_report_filters(df_filtered, 'r9', has_cdl=True)
+    st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.82rem; color:#444;">📌 <b>Note:</b> This report includes only features where <b>Training Required = Yes</b> or <b>TBD</b>. Features with Training = No or blank are excluded from all charts and tables below.</div>', unsafe_allow_html=True)
     ga_base_r9 = pd.Timestamp('2026-07-03'); valid_from_r9 = pd.Timestamp('2020-01-01')
     def get_ga_tier_r9(date, base):
         if pd.isna(date): return None
