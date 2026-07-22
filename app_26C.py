@@ -1334,8 +1334,8 @@ elif selected_report == "9️⃣  Feature Overall Status":
         if col in df_r9.columns:
             df_r9[col] = pd.to_datetime(df_r9[col], errors='coerce')
             df_r9[col] = df_r9[col].apply(lambda x: x if pd.notna(x) and x >= valid_from_r9 else pd.NaT)
-    df_r9['Target GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Recording Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Recording Date']) else ('Recording Dates TBD' if row['Training Required? '] == 'Yes' else ''), axis=1)
-    df_r9['Predicted GA+'] = df_r9.apply(lambda row: get_ga_tier_r9(row['Video Ready Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Video Ready Date']) else ('Recording To Be Submitted' if row['Training Required? '] == 'Yes' else ''), axis=1)
+    df_r9['Target GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Recording Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Recording Date']) else ('Recording Dates TBD' if row['Training Required? '] in ['Yes', 'TBD'] else ''), axis=1)
+    df_r9['Predicted GA+'] = df_r9.apply(lambda row: get_ga_tier_r9(row['Video Ready Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Video Ready Date']) else ('Recording To Be Submitted' if row['Training Required? '] in ['Yes', 'TBD'] else ''), axis=1)
     df_r9['Actual GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Actual Release Date'], ga_base_r9) if row['Final Overall Status'] == 'Released (A)' and pd.notna(row.get('Actual Release Date')) else '', axis=1)
     df_r9_nf = df_r9[df_r9['Feature Category'] != 'Unboxing'].copy()
     df_r9_ub = df_r9[df_r9['Feature Category'] == 'Unboxing'].copy()
