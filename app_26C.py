@@ -253,6 +253,10 @@ if selected_report == "🏠 Overview Dashboard":
         f'</div>', unsafe_allow_html=True)
 
     if training_blank > 0:
+        dropped_nf_ov = len(df_nf[df_nf['Final Overall Status'] == 'Feature Dropped'])
+    dropped_ub_ov = len(df_ub[df_ub['Final Overall Status'] == 'Feature Dropped'])
+    if dropped_nf_ov + dropped_ub_ov > 0:
+        st.markdown(f'<div class="upload-note">🔻 <b>Dropped features:</b> {dropped_nf_ov} New Features | {dropped_ub_ov} Unboxing (includes features marked dropped via Issue Resolution Outcome). These remain in the Release % denominators above.</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="upload-note">⚠️ <b>{training_blank} features</b> have no Training Required value. ({pillar_blank_str})</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
