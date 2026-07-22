@@ -2037,6 +2037,12 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 (resolution_val   in blocked_resolution_values)
             )
 
+        # ── NEW: dropped check — status OR any "dropped" resolution outcome ──
+        def is_feature_dropped(frow):
+            final_status_val = str(frow.get('Final Overall Status', '') or '').strip()
+            resolution_val   = str(frow.get('Issue Resolution Outcome', '') or '').strip()
+            return (final_status_val == 'Feature Dropped') or ('dropped' in resolution_val.lower())
+
         # ── Combined Bundled NF with active issue is NOT treated as complete ──
         def is_feature_completed(frow):
             fc   = str(frow.get(fc_col, '') or '').strip()
@@ -2052,24 +2058,31 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             if fc in ['', 'nan', 'none', 'NaN']: return pd.notna(vrd)
             return False
 
-        # ── blocked split into NF and Unboxing ──
+        # ── blocked & dropped split into NF and Unboxing ──
+        # Dropped is checked FIRST so a dropped feature is counted as Dropped,
+        # not as Blocked (a dropped feature will never ship; a blocked one might).
         blocked_nf_count    = 0
         blocked_unbox_count = 0
+        dropped_nf_count    = 0
+        dropped_unbox_count = 0
 
         for _, frow in cdl_nf.iterrows():
             if is_feature_completed(frow): continue
-            if is_feature_blocked(frow): blocked_nf_count += 1
+            if is_feature_dropped(frow): dropped_nf_count += 1
+            elif is_feature_blocked(frow): blocked_nf_count += 1
 
         for _, frow in cdl_unbox.iterrows():
             if is_feature_completed(frow): continue
-            if is_feature_blocked(frow): blocked_unbox_count += 1
+            if is_feature_dropped(frow): dropped_unbox_count += 1
+            elif is_feature_blocked(frow): blocked_unbox_count += 1
 
         blocked_count = blocked_nf_count + blocked_unbox_count
+        dropped_count = dropped_nf_count + dropped_unbox_count
 
-        # ── delayed split into NF and Unboxing ──
-        total_delayed   = max(target_comp - actual_total - blocked_count, 0)
-        pending_nf      = max(nf_count - actual_nf - blocked_nf_count, 0)
-        pending_unbox   = max(unbox_count - actual_unbox - blocked_unbox_count, 0)
+        # ── delayed split into NF and Unboxing (dropped excluded from delayed math) ──
+        total_delayed   = max(target_comp - actual_total - blocked_count - dropped_count, 0)
+        pending_nf      = max(nf_count - actual_nf - blocked_nf_count - dropped_nf_count, 0)
+        pending_unbox   = max(unbox_count - actual_unbox - blocked_unbox_count - dropped_unbox_count, 0)
         if total_delayed > 0:
             delayed_nf_count    = min(total_delayed, pending_nf)
             delayed_unbox_count = max(total_delayed - delayed_nf_count, 0)
@@ -2079,18 +2092,19 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             delayed_unbox_count = 0
         delayed_count = total_delayed
 
-        # ── FIX (status labels):
-        #    1. 'Complete' now means ALL features are actually done — not just "on pace".
+        # ── Status labels:
+        #    1. 'Complete' means ALL features are actually done — not just "on pace".
         #    2. If target_comp == 0 (recording started today / after a weekend, so nothing
-        #       is due yet), show 'In Progress (No videos due yet)' instead of a misleading
-        #       'Complete' with '✅ Completed: 0'.
-        #    3. Meeting the 3/day pace (but not fully done) is now labelled 'On Track'. ──
+        #       is due yet), show 'In Progress (No videos due yet)'.
+        #    3. Meeting the 3/day pace (but not fully done) = 'On Track'.
+        #    4. Dropped features count toward 'On Track (Issues Blocking)' — they are
+        #       not the CDL's fault and are shown separately in the status text. ──
         if not pd.notna(start_date):                          feat_status_label = 'Recording Date Not Set'
         elif start_date > today_r14:                          feat_status_label = 'Yet To Start'
         elif total_count > 0 and actual_total >= total_count: feat_status_label = 'Complete'
         elif target_comp == 0:                                feat_status_label = 'In Progress (No videos due yet)'
         elif actual_total >= target_comp:                     feat_status_label = 'On Track'
-        elif delayed_count == 0 and blocked_count > 0:        feat_status_label = 'On Track (Issues Blocking)'
+        elif delayed_count == 0 and (blocked_count > 0 or dropped_count > 0): feat_status_label = 'On Track (Issues Blocking)'
         elif delayed_count == 0:                              feat_status_label = 'On Track'
         else:                                                 feat_status_label = 'Delayed'
 
@@ -2117,21 +2131,38 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 return f'🔴 Delayed: {delayed_unbox_count} Unboxing'
             return ''
 
-        # ── FIX: handle the new labels in the display string ──
+        # ── NEW: dropped line for the status string ──
+        def fmt_dropped():
+            if dropped_nf_count > 0 and dropped_unbox_count > 0:
+                return f'🚫 Dropped: {dropped_nf_count} NF | {dropped_unbox_count} Unboxing'
+            elif dropped_nf_count > 0:
+                return f'🚫 Dropped: {dropped_nf_count} NF'
+            elif dropped_unbox_count > 0:
+                return f'🚫 Dropped: {dropped_unbox_count} Unboxing'
+            return ''
+
+        # ── build the display string (dropped shown separately from blocked) ──
         if feat_status_label in ['Recording Date Not Set', 'Yet To Start', 'In Progress (No videos due yet)']:
             feat_status = feat_status_label
         elif feat_status_label in ['Complete', 'On Track']:
-            feat_status = f'{feat_status_label}\n{fmt_completed()}'
+            parts = [fmt_completed()]
+            dropped_str = fmt_dropped()
+            if dropped_str: parts.append(dropped_str)
+            feat_status = f'{feat_status_label}\n' + ' | '.join(parts)
         elif feat_status_label == 'On Track (Issues Blocking)':
             parts = [fmt_completed()]
             blocked_str = fmt_blocked()
+            dropped_str = fmt_dropped()
             if blocked_str: parts.append(blocked_str)
+            if dropped_str: parts.append(dropped_str)
             feat_status = 'On Track (Issues Blocking)\n' + ' | '.join(parts)
         else:
             parts = [fmt_completed()]
             blocked_str = fmt_blocked()
+            dropped_str = fmt_dropped()
             delayed_str = fmt_delayed()
             if blocked_str: parts.append(blocked_str)
+            if dropped_str: parts.append(dropped_str)
             if delayed_str: parts.append(delayed_str)
             feat_status = 'Delayed\n' + ' | '.join(parts)
 
@@ -2198,7 +2229,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'No Of Videos Recorded': vid_status,
             '# NF Released to Production': nf_released,
             '# Unboxing Released to Production': unbox_released,
-            '# Features Dropped': dropped, '# SR Raised': sr_count,
+            '# Features Dropped': dropped_count, '# SR Raised': sr_count,
             'Details of Issue Faced': issues_consolidation,
             'No of Days Worked': days_worked,
             'Number of Features Developed / Day': features_per_day,
@@ -2235,14 +2266,12 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             if first_line == 'Complete':
                 styles[idx] = 'color: #10b981; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'On Track':
-                # ── FIX: new 'On Track' label (meeting 3/day pace) ──
                 styles[idx] = 'color: #0ea5e9; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'Delayed':
                 styles[idx] = 'color: red; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'On Track (Issues Blocking)':
                 styles[idx] = 'color: #f59e0b; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'In Progress (No videos due yet)':
-                # ── FIX: new 'In Progress' label (recording just started, nothing due yet) ──
                 styles[idx] = 'color: #7c3aed; font-weight: bold; text-align: left; white-space: pre-wrap'
             elif first_line == 'Yet To Start':
                 styles[idx] = 'color: #4f46e5; font-weight: bold; text-align: left; white-space: pre-wrap'
@@ -2288,11 +2317,12 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         <b>📌 Feature Count Status Guide:</b><br>
         <span style="color:#10b981; font-weight:bold;">● Complete</span> — ALL assigned features are done &nbsp;|&nbsp;
         <span style="color:#0ea5e9; font-weight:bold;">● On Track</span> — Meeting the 3/day pace (work still remaining) &nbsp;|&nbsp;
-        <span style="color:#f59e0b; font-weight:bold;">● On Track (Issues Blocking)</span> — All unblocked features done; remaining blocked by issues/dropped &nbsp;|&nbsp;
+        <span style="color:#f59e0b; font-weight:bold;">● On Track (Issues Blocking)</span> — All unblocked features done; remaining blocked by issues or dropped &nbsp;|&nbsp;
         <span style="color:red; font-weight:bold;">● Delayed</span> — Features pending with no logged issue &nbsp;|&nbsp;
         <span style="color:#7c3aed; font-weight:bold;">● In Progress (No videos due yet)</span> — Recording just started; first videos not yet due per 3/day rule &nbsp;|&nbsp;
         <span style="color:#4f46e5; font-weight:bold;">● Yet To Start</span> — Recording start date is in the future &nbsp;|&nbsp;
-        <span style="color:#94a3b8; font-weight:bold;">● Recording Date Not Set</span> — No recording date entered
+        <span style="color:#94a3b8; font-weight:bold;">● Recording Date Not Set</span> — No recording date entered<br>
+        <b>🚫 Dropped</b> — Feature dropped (Final Overall Status = Feature Dropped, or Issue Resolution Outcome contains "Dropped"). Shown inside the status text and counted in <b># Features Dropped</b>; excluded from Delayed.
     </div>""", unsafe_allow_html=True)
 
     def generate_r14_excel(df):
@@ -2322,10 +2352,10 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'CX':  PatternFill('solid', start_color='FFF9C4')
         }
         complete_fill     = PatternFill('solid', start_color='C6EFCE')
-        on_track_pace_fill = PatternFill('solid', start_color='D9F2FB')   # ── FIX: fill for 'On Track' ──
+        on_track_pace_fill = PatternFill('solid', start_color='D9F2FB')
         delayed_fill      = PatternFill('solid', start_color='FFC7CE')
         on_track_fill     = PatternFill('solid', start_color='FFEB9C')
-        in_progress_fill  = PatternFill('solid', start_color='EDE7F6')    # ── FIX: fill for 'In Progress' ──
+        in_progress_fill  = PatternFill('solid', start_color='EDE7F6')
         yet_to_start_fill = PatternFill('solid', start_color='DDEBF7')
         no_date_fill      = PatternFill('solid', start_color='F2F2F2')
         total_fill        = PatternFill('solid', start_color='D9D9D9')
@@ -2347,7 +2377,6 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                         cell.fill = complete_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='375623')
                     elif first_line == 'On Track':
-                        # ── FIX: new 'On Track' label ──
                         cell.fill = on_track_pace_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='1F4E79')
                     elif first_line == 'Delayed':
@@ -2357,7 +2386,6 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                         cell.fill = on_track_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='7D4E00')
                     elif first_line == 'In Progress (No videos due yet)':
-                        # ── FIX: new 'In Progress' label ──
                         cell.fill = in_progress_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='5B2C87')
                     elif first_line == 'Yet To Start':
