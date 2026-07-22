@@ -2014,6 +2014,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 (issue_type_val   not in ['', 'nan', 'none', 'NaN']) or
                 (issue_detail_val not in ['', 'nan', 'none', 'NaN']) or
                 (final_status_val == 'Feature Dropped') or
+                ('dropped' in resolution_val.lower()) or
                 (resolution_val   in blocked_resolution_values)
             )
 
