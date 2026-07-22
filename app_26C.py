@@ -94,6 +94,16 @@ def load_data():
             combined[col] = combined[col].apply(
                 lambda x: x if pd.notna(x) and x >= valid_from else pd.NaT)
     combined = inherit_primary_dates(combined)
+
+    # ── Auto-correct: if Issue Resolution Outcome says "Dropped..." but
+    #    Final Overall Status was never updated, treat it as Feature Dropped.
+    #    Released (A) is never overridden — a confirmed release wins.
+    if 'Issue Resolution Outcome' in combined.columns and 'Final Overall Status' in combined.columns:
+        res_dropped = combined['Issue Resolution Outcome'].fillna('').astype(str).str.contains('dropped', case=False)
+        status_now  = combined['Final Overall Status'].fillna('').astype(str).str.strip()
+        override_mask = res_dropped & (status_now != 'Released (A)') & (status_now != 'Feature Dropped')
+        combined.loc[override_mask, 'Final Overall Status'] = 'Feature Dropped'
+
     return combined
 
 def metric_card(value, label):
