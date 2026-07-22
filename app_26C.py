@@ -1541,6 +1541,36 @@ elif selected_report == "1️⃣1️⃣  Issues Tracker — Pillar & CDL Wise":
             <span style="background:#fce4d6; padding:2px 6px; border-radius:3px; font-weight:bold; color:#9c3000;">🟠 Requires D02 Pod</span>
         </div>""", unsafe_allow_html=True)
         st.download_button("⬇️ Download D01/D02 Pod Features", export_excel(df_pod_display), "report11_pod_features.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key="dl_pod")
+        st.markdown("---")
+    st.markdown('<div class="section-header">🛠️ Data Hygiene — Status Not Updated for Dropped Features</div>', unsafe_allow_html=True)
+
+    if 'Status Auto-Corrected' in df_r11.columns:
+        df_fixme = df_r11[df_r11['Status Auto-Corrected'] == True].copy()
+    else:
+        df_fixme = df_r11.iloc[0:0].copy()
+
+    if len(df_fixme) == 0:
+        st.success("✅ No mismatches found — all dropped features have Final Overall Status correctly set to 'Feature Dropped'.")
+    else:
+        st.markdown(f"""<div style="background-color:#fff3cd; padding:10px 16px; border-radius:6px;
+            border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.85rem; color:#664d03;">
+            ⚠️ <b>{len(df_fixme)} feature(s)</b> have a <b>"Dropped..."</b> value in <b>Issue Resolution Outcome</b>,
+            but <b>Final Overall Status</b> was never updated to <b>Feature Dropped</b> in SharePoint.<br>
+            The reports auto-correct these internally, but the source sheet should be fixed —
+            please ask the respective CDLs to update the Final Overall Status field.
+        </div>""", unsafe_allow_html=True)
+        fixme_cols = ['Pillar', 'Product', 'Feature', 'CDL Name', 'Issue Resolution Outcome']
+        fixme_cols = [c for c in fixme_cols if c in df_fixme.columns]
+        df_fixme_display = df_fixme[fixme_cols].reset_index(drop=True)
+        st.dataframe(
+            df_fixme_display.style.apply(lambda r: ['background-color: #fff3cd'] * len(r), axis=1).hide(axis='index'),
+            use_container_width=True,
+            column_config=col_config_compact(df_fixme_display)
+        )
+        st.download_button("⬇️ Download Status Fix List", export_excel(df_fixme_display),
+                           "report11_status_fix_list.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           key="dl_fixme")
 # ─────────────────────────────────────────────
 # REPORT 12: GA+ Release
 # ─────────────────────────────────────────────
