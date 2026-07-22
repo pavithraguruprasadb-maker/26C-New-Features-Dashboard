@@ -1485,10 +1485,7 @@ elif selected_report == "1️⃣1️⃣  Issues Tracker — Pillar & CDL Wise":
     col1.markdown(metric_card(len(df_issues), "Total Features with Issues"), unsafe_allow_html=True)
     col2.markdown(metric_card(len(df_issues[df_issues['Issue Resolved']]), "✅ Resolved"), unsafe_allow_html=True)
     col3.markdown(metric_card(len(df_issues[~df_issues['Issue Resolved']]), "⚠️ Unresolved"), unsafe_allow_html=True)
-    col1, col2, col3 = st.columns(3)
-col1.markdown(metric_card(len(df_issues), "Total Features with Issues"), unsafe_allow_html=True)
-col2.markdown(metric_card(len(df_issues[df_issues['Issue Resolved']]), "✅ Resolved"), unsafe_allow_html=True)
-col3.markdown(metric_card(len(df_issues[~df_issues['Issue Resolved']]), "⚠️ Unresolved"), unsafe_allow_html=True)
+
 
 # --- Resolved subcategory breakdown (below the Resolved card) ---
 def normalize_outcome(val):
