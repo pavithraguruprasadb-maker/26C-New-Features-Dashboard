@@ -1821,6 +1821,10 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
         '</div>',
         unsafe_allow_html=True
     )
+    dropped_r13 = len(df_r13_all[df_r13_all['Final Overall Status'] == 'Feature Dropped'])
+    if dropped_r13 > 0:
+        st.markdown(f'<div class="upload-note">🔻 <b>{dropped_r13} feature(s) in the totals are dropped</b> (incl. drops recorded only in Issue Resolution Outcome). Totals and % Released are unchanged; these can never be released.</div>', unsafe_allow_html=True)
+    def style_exec_table(row):
     def style_exec_table(row):
         styles = []
         for c in list(row.index):
