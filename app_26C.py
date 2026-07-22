@@ -941,6 +941,8 @@ elif selected_report == "6️⃣  CDL Recording Status — Pillar & CDL Wise":
     import numpy as np
     today = pd.Timestamp(datetime.today().date())
     df_r6 = df_filtered.copy()
+    dropped_r6_count = len(df_r6[df_r6['Final Overall Status'] == 'Feature Dropped'])
+    df_r6 = df_r6[df_r6['Final Overall Status'] != 'Feature Dropped'].copy()
     df_r6['CDL Name'] = df_r6['CDL Name'].fillna('Unassigned')
     df_r6['Training Required? '] = df_r6['Training Required? '].fillna('Not Set')
     df_r6['Video Ready Date'] = pd.to_datetime(df_r6['Video Ready Date'], errors='coerce')
