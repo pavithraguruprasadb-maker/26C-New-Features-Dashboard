@@ -102,6 +102,7 @@ def load_data():
         res_dropped = combined['Issue Resolution Outcome'].fillna('').astype(str).str.contains('dropped', case=False)
         status_now  = combined['Final Overall Status'].fillna('').astype(str).str.strip()
         override_mask = res_dropped & (status_now != 'Released (A)') & (status_now != 'Feature Dropped')
+        combined['Status Auto-Corrected'] = override_mask
         combined.loc[override_mask, 'Final Overall Status'] = 'Feature Dropped'
 
     return combined
