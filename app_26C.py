@@ -1486,51 +1486,45 @@ elif selected_report == "1️⃣1️⃣  Issues Tracker — Pillar & CDL Wise":
     col2.markdown(metric_card(len(df_issues[df_issues['Issue Resolved']]), "✅ Resolved"), unsafe_allow_html=True)
     col3.markdown(metric_card(len(df_issues[~df_issues['Issue Resolved']]), "⚠️ Unresolved"), unsafe_allow_html=True)
 
+    # --- Resolved subcategory breakdown (below the Resolved card) ---
+    def normalize_outcome(val):
+        v = str(val).strip().lower()
+        v = ' '.join(v.split())
+        if 'd01' in v:
+            return 'Requires D01 POD'
+        if 'd02' in v:
+            return 'Requires D02 POD'
+        if 'extensive setup' in v:
+            return 'Dropped (Extensive Setup)'
+        if 'bug' in v:
+            return 'Dropped (Bug)'
+        if 'env' in v and 'support' in v:
+            return 'Dropped (Env does not support)'
+        if '26d' in v:
+            return 'Dropped (Available In 26D)'
+        if 'no response' in v:
+            return 'No Response From PM Team'
+        if 'resolved' in v and 'recorded' in v:
+            return 'Resolved and Recorded'
+        return str(val).strip()
 
-# --- Resolved subcategory breakdown (below the Resolved card) ---
-def normalize_outcome(val):
-    v = str(val).strip().lower()
-    v = ' '.join(v.split())
-    if 'd01' in v:
-        return 'Requires D01 POD'
-    if 'd02' in v:
-        return 'Requires D02 POD'
-    if 'extensive setup' in v:
-        return 'Dropped (Extensive Setup)'
-    if 'bug' in v:
-        return 'Dropped (Bug)'
-    if 'env' in v and 'support' in v:
-        return 'Dropped (Env does not support)'
-    if '26d' in v:
-        return 'Dropped (Available In 26D)'
-    if 'no response' in v:
-        return 'No Response From PM Team'
-    if 'resolved' in v and 'recorded' in v:
-        return 'Resolved and Recorded'
-    return str(val).strip()
+    resolved_counts = (
+        df_issues.loc[df_issues['Issue Resolved'], 'Issue Resolution Outcome']
+        .map(normalize_outcome)
+        .value_counts()
+    )
 
-resolved_counts = (
-    df_issues.loc[df_issues['Issue Resolved'], 'Issue Resolution Outcome']
-    .map(normalize_outcome)
-    .value_counts()
-)
+    breakdown_html = "".join(
+        f'<div style="font-size:0.74rem; color:#555; padding:1px 4px;">&bull; {cat} — <b>{cnt}</b></div>'
+        for cat, cnt in resolved_counts.items()
+    )
 
-breakdown_html = "".join(
-    f'<div style="font-size:0.74rem; color:#555; padding:1px 4px;">&bull; {cat} — <b>{cnt}</b></div>'
-    for cat, cnt in resolved_counts.items()
-)
-
-col2.markdown(f"""
-<div style="background:#f8f9fc; border:1px solid #e5e7eb; border-radius:8px;
-     padding:6px 10px; margin-top:4px;">
-    {breakdown_html}
-</div>
-""", unsafe_allow_html=True)
-
-if len(df_issues) == 0:
-    st.success("🎉 No issues found!")
-else:
-    ...  # rest of your existing code unchanged
+    col2.markdown(f"""
+    <div style="background:#f8f9fc; border:1px solid #e5e7eb; border-radius:8px;
+         padding:6px 10px; margin-top:4px;">
+        {breakdown_html}
+    </div>
+    """, unsafe_allow_html=True)
 
     if len(df_issues) == 0:
         st.success("🎉 No issues found!")
