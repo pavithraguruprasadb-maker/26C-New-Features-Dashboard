@@ -409,6 +409,7 @@ elif selected_report == "2️⃣  Training Required — Pillar & Product Wise":
         ub_released  = len(pg_ub_df[(pg_ub_df['Training Required? '] == 'Yes') & (pg_ub_df['Final Overall Status'] == 'Released (A)')])
         ub_rel_pct   = round(ub_released / ub_yes_count * 100, 1) if ub_yes_count > 0 else 0.0
         ub_rel_color = '#10b981' if ub_rel_pct >= 50 else '#ef4444'
+        pg_dropped = len(pg_df[pg_df['Final Overall Status'] == 'Feature Dropped'])
         col.markdown(
             f'<div class="metric-card" style="border-left-color:#4f46e5; text-align:left; padding:1rem;">'
             f'<div style="font-size:1rem; font-weight:700; color:#1a1a2e; margin-bottom:0.5rem;">{pg}</div>'
