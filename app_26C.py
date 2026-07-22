@@ -423,6 +423,7 @@ elif selected_report == "2️⃣  Training Required — Pillar & Product Wise":
             f'<div style="font-size:0.75rem; color:#94a3b8; margin-bottom:0.2rem;">({nf_released} of {yes} Training=Yes NF)</div>'
             f'<div style="font-size:0.82rem; font-weight:700; color:{ub_rel_color};">📦 Unboxing Release %: {ub_rel_pct}%</div>'
             f'<div style="font-size:0.75rem; color:#94a3b8;">({ub_released} of {ub_yes_count} Training=Yes Unboxing)</div>'
+            f'<div style="font-size:0.78rem; color:#ef4444;">🔻 Dropped: <b>{pg_dropped}</b></div>'
             f'</div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
