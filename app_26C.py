@@ -970,6 +970,8 @@ elif selected_report == "6️⃣  CDL Recording Status — Pillar & CDL Wise":
         return pillar
     df_r6['Pillar Group'] = df_r6['Pillar'].apply(map_pillar_group_r6)
     st.markdown('<div class="section-header">📦 Pillar Wise — Recording Status</div>', unsafe_allow_html=True)
+    if dropped_r6_count > 0:
+        st.markdown(f'<div class="upload-note">📌 <b>{dropped_r6_count} dropped feature(s)</b> (Final Status = Feature Dropped, incl. auto-detected from Issue Resolution Outcome) are excluded from all recording counts below.</div>', unsafe_allow_html=True)
     pillar_groups = ['CX', 'ERP', 'HCM', 'PRC', 'SCM']
     box_cols = st.columns(5)
     for col, pg in zip(box_cols, pillar_groups):
