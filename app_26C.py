@@ -2003,6 +2003,15 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         'Requires D02 Pod'
     ]
 
+    # ── FALLBACK: statuses that can only be reached AFTER the video was
+    #    recorded and submitted. If Video Ready Date was left blank in
+    #    SharePoint but the status is one of these, the recording clearly
+    #    exists — so we treat the feature as submitted instead of Delayed. ──
+    POST_RECORDING_STATUSES = [
+        'In Review (A)', 'In Review Fixes (A)', 'In Post Production (A)',
+        'In QA (A)', 'In QA Fixes (A)', 'In Setup (A)', 'Released (A)'
+    ]
+
     rows = []
     all_cdls = df_r14_all[df_r14_all['CDL Name'] != 'Unassigned']['CDL Name'].unique()
     for cdl in all_cdls:
@@ -2047,29 +2056,40 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             ref_date    = pd.NaT
             target_comp = 0
 
+        # ── helper: submission is evident from the date OR the status ──
+        def _submitted(frow):
+            vrd    = frow.get('Video Ready Date', None)
+            status = str(frow.get('Final Overall Status', '') or '').strip()
+            return pd.notna(vrd) or status in POST_RECORDING_STATUSES
+
         # Completed primary videos (for bundled NF detection)
+        # FALLBACK applied: a primary counts as completed if its Video Ready
+        # Date is set OR its status proves the video was already submitted.
         completed_primary_videos = set(
             cdl_nf[
                 (cdl_nf[fc_col] == 'Combined Primary NF') &
-                (cdl_nf['Video Ready Date'].notna()) &
+                (cdl_nf['Video Ready Date'].notna() | cdl_nf['Final Overall Status'].isin(POST_RECORDING_STATUSES)) &
                 (cdl_nf['Combined Feature Video Name'].notna())
             ]['Combined Feature Video Name']
         ) if fc_col in cdl_nf.columns else set()
 
+        # ── actual completion counts — FALLBACK applied to all three ──
         single_done  = len(cdl_nf[
             (cdl_nf[fc_col].isin(['Single NF']) | cdl_nf[fc_col].isna()) &
-            (cdl_nf['Video Ready Date'].notna())
+            (cdl_nf['Video Ready Date'].notna() | cdl_nf['Final Overall Status'].isin(POST_RECORDING_STATUSES))
         ]) if fc_col in cdl_nf.columns else 0
         primary_done = len(cdl_nf[
             (cdl_nf[fc_col] == 'Combined Primary NF') &
-            (cdl_nf['Video Ready Date'].notna())
+            (cdl_nf['Video Ready Date'].notna() | cdl_nf['Final Overall Status'].isin(POST_RECORDING_STATUSES))
         ]) if fc_col in cdl_nf.columns else 0
         bundled_done = len(cdl_nf[
             (cdl_nf[fc_col] == 'Combined Bundled NF') &
             (cdl_nf['Combined Feature Video Name'].isin(completed_primary_videos))
         ]) if completed_primary_videos else 0
         actual_nf    = single_done + primary_done + bundled_done
-        actual_unbox = len(cdl_unbox[cdl_unbox['Video Ready Date'].notna()])
+        actual_unbox = len(cdl_unbox[
+            cdl_unbox['Video Ready Date'].notna() | cdl_unbox['Final Overall Status'].isin(POST_RECORDING_STATUSES)
+        ])
         actual_total = actual_nf + actual_unbox
 
         nf_released    = len(cdl_orig[(cdl_orig['Final Overall Status'] == 'Released (A)') & (cdl_orig['Feature Category'] != 'Unboxing')])
@@ -2108,25 +2128,28 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 (resolution_val   in blocked_resolution_values)
             )
 
-        # ── NEW: dropped check — status OR any "dropped" resolution outcome ──
+        # ── dropped check — status OR any "dropped" resolution outcome ──
         def is_feature_dropped(frow):
             final_status_val = str(frow.get('Final Overall Status', '') or '').strip()
             resolution_val   = str(frow.get('Issue Resolution Outcome', '') or '').strip()
             return (final_status_val == 'Feature Dropped') or ('dropped' in resolution_val.lower())
 
-        # ── Combined Bundled NF with active issue is NOT treated as complete ──
+        # ── FALLBACK applied here: a feature counts as completed when its
+        #    Video Ready Date is set, OR its Final Overall Status is a stage
+        #    that can only exist after the recording was submitted. ──
         def is_feature_completed(frow):
             fc   = str(frow.get(fc_col, '') or '').strip()
-            vrd  = frow.get('Video Ready Date', None)
             cfvn = str(frow.get('Combined Feature Video Name', '') or '').strip()
             cat  = str(frow.get('Feature Category', '') or '').strip()
-            if cat == 'Unboxing': return pd.notna(vrd)
-            if fc in ['Single NF', 'Combined Primary NF']: return pd.notna(vrd)
+            status = str(frow.get('Final Overall Status', '') or '').strip()
+            recording_evident = _submitted(frow)
+            if cat == 'Unboxing': return recording_evident
+            if fc in ['Single NF', 'Combined Primary NF']: return recording_evident
             if fc == 'Combined Bundled NF':
                 # If blocked by an issue, do NOT treat as complete even if primary is done
                 if is_feature_blocked(frow): return False
-                return cfvn in completed_primary_videos
-            if fc in ['', 'nan', 'none', 'NaN']: return pd.notna(vrd)
+                return (cfvn in completed_primary_videos) or (status in POST_RECORDING_STATUSES)
+            if fc in ['', 'nan', 'none', 'NaN']: return recording_evident
             return False
 
         # ── blocked & dropped split into NF and Unboxing ──
@@ -2202,7 +2225,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 return f'🔴 Delayed: {delayed_unbox_count} Unboxing'
             return ''
 
-        # ── NEW: dropped line for the status string ──
+        # ── dropped line for the status string ──
         def fmt_dropped():
             if dropped_nf_count > 0 and dropped_unbox_count > 0:
                 return f'🚫 Dropped: {dropped_nf_count} NF | {dropped_unbox_count} Unboxing'
@@ -2237,8 +2260,9 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             if delayed_str: parts.append(delayed_str)
             feat_status = 'Delayed\n' + ' | '.join(parts)
 
+        # ── FALLBACK applied to recorded-videos count as well ──
         actual_videos = len(cdl_nf[
-            (cdl_nf['Video Ready Date'].notna()) &
+            (cdl_nf['Video Ready Date'].notna() | cdl_nf['Final Overall Status'].isin(POST_RECORDING_STATUSES)) &
             (cdl_nf[fc_col].isin(video_filter))
         ]) if fc_col in cdl_nf.columns else 0
         not_set_count = len(cdl_nf[cdl_nf[fc_col].isna()]) if fc_col in cdl_nf.columns else 0
@@ -2393,7 +2417,8 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         <span style="color:#7c3aed; font-weight:bold;">● In Progress (No videos due yet)</span> — Recording just started; first videos not yet due per 3/day rule &nbsp;|&nbsp;
         <span style="color:#4f46e5; font-weight:bold;">● Yet To Start</span> — Recording start date is in the future &nbsp;|&nbsp;
         <span style="color:#94a3b8; font-weight:bold;">● Recording Date Not Set</span> — No recording date entered<br>
-        <b>🚫 Dropped</b> — Feature dropped (Final Overall Status = Feature Dropped, or Issue Resolution Outcome contains "Dropped"). Shown inside the status text and counted in <b># Features Dropped</b>; excluded from Delayed.
+        <b>🚫 Dropped</b> — Feature dropped (Final Overall Status = Feature Dropped, or Issue Resolution Outcome contains "Dropped"). Shown inside the status text and counted in <b># Features Dropped</b>; excluded from Delayed.<br>
+        <b>📌 Completion rule:</b> A video counts as submitted when its <b>Video Ready Date</b> is filled, <b>or</b> its Final Overall Status has already moved past recording (In Review / Post Production / QA / Setup / Released) — so a missing date alone no longer marks a CDL as Delayed.
     </div>""", unsafe_allow_html=True)
 
     def generate_r14_excel(df):
