@@ -2023,7 +2023,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
     # through text = cancelled and is removed before counting.
     # Requires openpyxl >= 3.1 (rich_text support).
     # ══════════════════════════════════════════════════════════════════
-    RAC_FILE_PATH = "26C Sprint CDL RAC.xlsx"   # <-- keep this file next to app.py (update when RAC changes)
+    RAC_FILE_PATH = "26C_Sprint_CDL_RAC.xlsx"   # <-- keep this file next to app.py (update when RAC changes)
     RAC_SHEETS    = ['HCM', 'SCM', 'ERP', 'CX']
     RAC_START     = pd.Timestamp('2026-07-06')
 
@@ -2127,6 +2127,8 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
     _rac_norm = lambda x: str(x).strip().lower()
     rac_elapsed_map = {_rac_norm(k): v for k, v in zip(rac_days_df.get('CDL', []), rac_days_df.get('RAC Elapsed', []))}
     rac_start_map   = {_rac_norm(k): v for k, v in zip(rac_days_df.get('CDL', []), rac_days_df.get('RAC Start', []))}
+    rac_end_map     = {_rac_norm(k): v for k, v in zip(rac_days_df.get('CDL', []), rac_days_df.get('RAC End', []))}
+    rac_total_map   = {_rac_norm(k): v for k, v in zip(rac_days_df.get('CDL', []), rac_days_df.get('RAC NF Days', []))}
 
     def _rac_lookup(cdl_name, mapping, default=None):
         # RAC uses first names; the report may hold 'Barney' or 'Barney Smith'
@@ -2399,11 +2401,16 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         # ══════════════════════════════════════════════════════════════
         rac_elapsed = _rac_lookup(cdl, rac_elapsed_map, default=None)
         rac_start   = _rac_lookup(cdl, rac_start_map,   default=None)
+        rac_end     = _rac_lookup(cdl, rac_end_map,     default=None)
+        rac_total   = _rac_lookup(cdl, rac_total_map,   default=None)
         if rac_elapsed is None:
             rac_target = 0
             rac_status_label = 'Not in RAC Calendar'
         else:
             rac_target = min(int(float(rac_elapsed) * 3), total_count)
+            # days still allotted (today's cell + future cells)
+            rac_remaining = max(float(rac_total or 0) - float(rac_elapsed), 0.0)
+            rac_window_open = rac_end is not None and pd.notna(rac_end) and pd.Timestamp(rac_end) >= today_r14
             if total_count > 0 and actual_total >= total_count:
                 rac_status_label = 'Complete'
             elif rac_start is not None and pd.notna(rac_start) and pd.Timestamp(rac_start) > today_r14:
@@ -2414,12 +2421,19 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 rac_status_label = 'On Track'
             else:
                 rac_delayed_total = max(rac_target - actual_total - blocked_count - dropped_count, 0)
+                pending_all       = max(total_count - actual_total - blocked_count - dropped_count, 0)
                 if rac_delayed_total == 0 and (blocked_count > 0 or dropped_count > 0):
                     rac_status_label = 'On Track (Issues Blocking)'
                 elif rac_delayed_total == 0:
                     rac_status_label = 'On Track'
+                # behind pace, but the RAC window is still open:
+                elif rac_window_open and pending_all <= rac_remaining * 3:
+                    _end_str = pd.Timestamp(rac_end).strftime('%d-%b')
+                    rac_status_label = f'Behind Pace (RAC days remaining till {_end_str})'
+                elif rac_window_open:
+                    rac_status_label = 'Delayed (Cannot finish in allotted RAC days)'
                 else:
-                    rac_status_label = 'Delayed'
+                    rac_status_label = 'Delayed (RAC window over)'
 
         # split RAC delay into NF / Unboxing (same convention as above)
         rac_delayed_total = max(rac_target - actual_total - blocked_count - dropped_count, 0)
@@ -2441,6 +2455,13 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
 
         if rac_status_label in ['Not in RAC Calendar', 'Yet To Start', 'In Progress (No videos due yet)']:
             feat_status_rac = rac_status_label
+        elif rac_status_label.startswith('Behind Pace') or rac_status_label.startswith('Delayed'):
+            parts_r = [fmt_completed()]
+            _bs = fmt_blocked(); _ds = fmt_dropped(); _dl = fmt_delayed_rac()
+            if _bs: parts_r.append(_bs)
+            if _ds: parts_r.append(_ds)
+            if _dl: parts_r.append(_dl.replace('🔴 Delayed', '🟠 Pending') if rac_status_label.startswith('Behind Pace') else _dl)
+            feat_status_rac = f'{rac_status_label}\n' + ' | '.join(parts_r)
         elif rac_status_label in ['Complete', 'On Track']:
             parts_r = [fmt_completed()]
             _ds = fmt_dropped()
@@ -2453,12 +2474,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             if _ds: parts_r.append(_ds)
             feat_status_rac = 'On Track (Issues Blocking)\n' + ' | '.join(parts_r)
         else:
-            parts_r = [fmt_completed()]
-            _bs = fmt_blocked(); _ds = fmt_dropped(); _dl = fmt_delayed_rac()
-            if _bs: parts_r.append(_bs)
-            if _ds: parts_r.append(_ds)
-            if _dl: parts_r.append(_dl)
-            feat_status_rac = 'Delayed\n' + ' | '.join(parts_r)
+            feat_status_rac = rac_status_label
 
         # ── FALLBACK applied to recorded-videos count as well ──
         actual_videos = len(cdl_nf[
@@ -2561,11 +2577,16 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
     # ══════════════════════════════════════════════════════════════════
     RAC_DAYS_COL = 'Exact Number of Days allotted for NF Analysis and Content Development'
     RAC_LAST_COL = 'Last date as per RAC calendar'
+    RAC_GA_COL   = 'GA+ Release as per RAC'
     if len(rac_days_df) > 0:
         rac_days_map = {str(k).strip().lower(): v for k, v in
                         zip(rac_days_df['CDL'], rac_days_df['RAC NF Days'])}
         rac_last_map = {str(k).strip().lower(): v.strftime('%d-%b-%Y') for k, v in
                         zip(rac_days_df['CDL'], rac_days_df['RAC End'])}
+        # GA+ tier from RAC last date — same convention as column K (GA+X):
+        # release expected = last working day + 4 days, mapped onto GA+ tiers
+        rac_ga_map   = {str(k).strip().lower(): get_ga_tier_r14(v + pd.Timedelta(days=4), ga_base_ts_r14)
+                        for k, v in zip(rac_days_df['CDL'], rac_days_df['RAC End'])}
 
         def _lookup_rac(cdl_name, mapping):
             # RAC uses first names; the report may hold 'Barney' or 'Barney Smith'
@@ -2584,21 +2605,24 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
 
         df_r14_out[RAC_DAYS_COL] = df_r14_out['CDL'].apply(lambda n: _lookup_rac(n, rac_days_map))
         df_r14_out[RAC_LAST_COL] = df_r14_out['CDL'].apply(lambda n: _lookup_rac(n, rac_last_map))
+        df_r14_out[RAC_GA_COL]   = df_r14_out['CDL'].apply(lambda n: _lookup_rac(n, rac_ga_map))
         _vals = pd.to_numeric(df_r14_out.loc[df_r14_out['Pillar'] != 'Total', RAC_DAYS_COL],
                               errors='coerce')
         df_r14_out.loc[df_r14_out['Pillar'] == 'Total', RAC_DAYS_COL] = round(_vals.sum(), 2)
         df_r14_out.loc[df_r14_out['Pillar'] == 'Total', RAC_LAST_COL] = ''
+        df_r14_out.loc[df_r14_out['Pillar'] == 'Total', RAC_GA_COL]   = ''
     else:
         df_r14_out[RAC_DAYS_COL] = ''
         df_r14_out[RAC_LAST_COL] = ''
+        df_r14_out[RAC_GA_COL]   = ''
         st.warning(f"⚠️ RAC file not found at '{RAC_FILE_PATH}' — RAC columns left blank.")
 
     # place the two RAC columns right after 'GA+X' for readability
     _cols = list(df_r14_out.columns)
-    for _c in [RAC_DAYS_COL, RAC_LAST_COL]:
+    for _c in [RAC_DAYS_COL, RAC_LAST_COL, RAC_GA_COL]:
         _cols.remove(_c)
     _pos = _cols.index('GA+X') + 1
-    _cols = _cols[:_pos] + [RAC_DAYS_COL, RAC_LAST_COL] + _cols[_pos:]
+    _cols = _cols[:_pos] + [RAC_DAYS_COL, RAC_LAST_COL, RAC_GA_COL] + _cols[_pos:]
     df_r14_out = df_r14_out[_cols]
 
     st.markdown('<div class="section-header">📊 CDL Status Preview</div>', unsafe_allow_html=True)
@@ -2628,22 +2652,27 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             val  = row['Feature Count Status (3/Day rule) as per RAC']
             idx  = cols.index('Feature Count Status (3/Day rule) as per RAC')
             first_line = str(val).split('\n')[0].strip() if val else ''
-            _map = {'Complete': '#10b981', 'On Track': '#0ea5e9', 'Delayed': 'red',
-                    'On Track (Issues Blocking)': '#f59e0b',
-                    'In Progress (No videos due yet)': '#7c3aed',
-                    'Yet To Start': '#4f46e5', 'Not in RAC Calendar': '#94a3b8'}
-            if first_line in _map:
-                styles[idx] = f'color: {_map[first_line]}; font-weight: bold; text-align: left; white-space: pre-wrap'
+            if first_line.startswith('Behind Pace'):
+                styles[idx] = 'color: #ea580c; font-weight: bold; text-align: left; white-space: pre-wrap'
+            elif first_line.startswith('Delayed'):
+                styles[idx] = 'color: red; font-weight: bold; text-align: left; white-space: pre-wrap'
+            else:
+                _map = {'Complete': '#10b981', 'On Track': '#0ea5e9',
+                        'On Track (Issues Blocking)': '#f59e0b',
+                        'In Progress (No videos due yet)': '#7c3aed',
+                        'Yet To Start': '#4f46e5', 'Not in RAC Calendar': '#94a3b8'}
+                if first_line in _map:
+                    styles[idx] = f'color: {_map[first_line]}; font-weight: bold; text-align: left; white-space: pre-wrap'
         if 'No Of Videos Recorded' in cols:
             idx = cols.index('No Of Videos Recorded'); val = row['No Of Videos Recorded']
             if val == 'Feature Classification Not Set':
                 styles[idx] = 'color: #94a3b8; font-style: italic; text-align: left'
             else:
                 styles[idx] = 'color: #1a1a2e; font-weight: bold; text-align: left'
-        if RAC_DAYS_COL in cols:
-            styles[cols.index(RAC_DAYS_COL)] = 'color: #7c3aed; font-weight: bold'
-        if RAC_LAST_COL in cols:
-            styles[cols.index(RAC_LAST_COL)] = 'color: #7c3aed; font-weight: bold'
+        for _rc in [RAC_DAYS_COL, RAC_LAST_COL, RAC_GA_COL,
+                    'Expected Completion based on RAC Schedule']:
+            if _rc in cols:
+                styles[cols.index(_rc)] = 'color: #7c3aed; font-weight: bold'
         return styles
 
     def col_config_r14(df):
@@ -2687,8 +2716,9 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         <span style="color:#94a3b8; font-weight:bold;">● Recording Date Not Set</span> — No recording date entered<br>
         <b>🚫 Dropped</b> — Feature dropped (Final Overall Status = Feature Dropped, or Issue Resolution Outcome contains "Dropped"). Shown inside the status text and counted in <b># Features Dropped</b>; excluded from Delayed.<br>
         <b>📌 Completion rule:</b> A video counts as submitted when its <b>Video Ready Date</b> is filled, <b>or</b> its Final Overall Status has already moved past recording (In Review / Post Production / QA / Setup / Released) — so a missing date alone no longer marks a CDL as Delayed.<br>
+        <b>🟠 Behind Pace (RAC days remaining till &lt;date&gt;)</b> — behind the 3/day pace, but RAC days are still allotted and the pending work fits in them; recoverable. <b>🔴 Delayed (Cannot finish in allotted RAC days)</b> — pending work exceeds remaining allotted capacity; needs more RAC days. <b>🔴 Delayed (RAC window over)</b> — last allotted RAC day has passed with features still pending.<br>
         <b>📅 RAC-based pace:</b> <b>Expected Completion based on RAC Schedule</b> = 3 × the number of 26C NF days already elapsed in the RAC calendar (fractions counted; today's cell excluded until the day is over), capped at total assigned. <b>Status as per RAC</b> applies the same rules but measures delay against this RAC-based target — so a CDL is only expected to deliver for days actually allotted to 26C NF.<br>
-        <b>📅 RAC columns:</b> <b>Days allotted</b> = count of 26C NF cells in the sprint RAC calendar from 06-Jul (shared-day cells counted as fractions; struck-through entries treated as cancelled). <b>Last date as per RAC calendar</b> = the latest calendar day containing a live 26C NF entry for that CDL.
+        <b>📅 RAC columns:</b> <b>Days allotted</b> = count of 26C NF cells in the sprint RAC calendar from 06-Jul (shared-day cells counted as fractions; struck-through entries treated as cancelled). <b>Last date as per RAC calendar</b> = the latest calendar day containing a live 26C NF entry for that CDL. <b>GA+ Release as per RAC</b> = that last RAC date + 4 days mapped to GA+ tiers (same convention as GA+X). All four RAC-sourced data columns share the lavender fill in the Excel export.
     </div>""", unsafe_allow_html=True)
 
     def generate_r14_excel(df):
@@ -2726,6 +2756,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         no_date_fill      = PatternFill('solid', start_color='F2F2F2')
         total_fill        = PatternFill('solid', start_color='D9D9D9')
         rac_fill          = PatternFill('solid', start_color='EDE7F6')
+        behind_pace_fill  = PatternFill('solid', start_color='FFE0C2')
         for r_idx, row in enumerate(df.itertuples(index=False), 3):
             pillar_val = str(row.Pillar)
             is_total   = pillar_val == 'Total'
@@ -2741,7 +2772,13 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 elif col_name in ['Feature Count Status (3/Day rule)',
                                   'Feature Count Status (3/Day rule) as per RAC']:
                     first_line = str(val).split('\n')[0].strip() if val else ''
-                    if first_line == 'Complete':
+                    if first_line.startswith('Behind Pace'):
+                        cell.fill = behind_pace_fill
+                        cell.font = Font(name='Arial', size=9, bold=True, color='9A3412')
+                    elif first_line.startswith('Delayed'):
+                        cell.fill = delayed_fill
+                        cell.font = Font(name='Arial', size=9, bold=True, color='9C0006')
+                    elif first_line == 'Complete':
                         cell.fill = complete_fill
                         cell.font = Font(name='Arial', size=9, bold=True, color='375623')
                     elif first_line == 'On Track':
@@ -2776,7 +2813,9 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                     cell.font      = Font(name='Arial', size=9, bold=True, color='1F3864')
                     cell.alignment = center
                 elif col_name in ['Exact Number of Days allotted for NF Analysis and Content Development',
-                                  'Last date as per RAC calendar']:
+                                  'Last date as per RAC calendar',
+                                  'GA+ Release as per RAC',
+                                  'Expected Completion based on RAC Schedule']:
                     cell.fill      = rac_fill
                     cell.font      = Font(name='Arial', size=9, bold=True, color='5B2C87')
                     cell.alignment = center
@@ -2799,6 +2838,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'NF Dev Start Date': 14, 'NF Dev End Date': 14, 'GA+X': 10,
             'Exact Number of Days allotted for NF Analysis and Content Development': 18,
             'Last date as per RAC calendar': 16,
+            'GA+ Release as per RAC': 12,
             'Expected Completion': 12, 'Actual NF Completion': 14,
             'Actual Unboxing Completion': 16,
             'Feature Count Status (3/Day rule)': 30,
