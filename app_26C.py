@@ -2023,7 +2023,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
     # through text = cancelled and is removed before counting.
     # Requires openpyxl >= 3.1 (rich_text support).
     # ══════════════════════════════════════════════════════════════════
-    RAC_FILE_PATH = "26C_Sprint_CDL_RAC.xlsx"   # <-- keep this file next to app.py (update when RAC changes)
+    RAC_FILE_PATH = "26C Sprint CDL RAC.xlsx"   # <-- keep this file next to app.py (update when RAC changes)
     RAC_SHEETS    = ['HCM', 'SCM', 'ERP', 'CX']
     RAC_START     = pd.Timestamp('2026-07-06')
 
