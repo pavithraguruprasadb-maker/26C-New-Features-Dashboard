@@ -1956,6 +1956,54 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
         buf = io.BytesIO(); wb.save(buf); return buf.getvalue()
     excel_data = generate_exec_excel(df_final, ga_base_ts_r13, sorted_tier_nums)
     st.download_button("⬇️ Download 26C Release Dashboard (Excel)", excel_data, "26C_Release_Dashboard.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    # ─────────────────────────────────────────────
+    # Training = Yes but Recording Dates NOT SET
+    # ─────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown('<div class="section-header">📅 Recording Dates Not Yet Set — Training = Yes</div>', unsafe_allow_html=True)
+
+    df_nodate = df_r13_all[
+        (df_r13_all['Target Tier'] == 'Not Set') &
+        (df_r13_all['Final Overall Status'] != 'Feature Dropped')
+    ].copy()
+    df_nodate['CDL Name'] = df_nodate['CDL Name'].fillna('Unassigned')
+    dropped_nodate = len(df_r13_all[
+        (df_r13_all['Target Tier'] == 'Not Set') &
+        (df_r13_all['Final Overall Status'] == 'Feature Dropped')
+    ])
+
+    if len(df_nodate) == 0:
+        st.success("✅ Every Training = Yes feature has a Recording Date set.")
+    else:
+        st.markdown(f"""<div style="background-color:#fde8e8; padding:10px 16px; border-radius:6px;
+            border-left:4px solid #ef4444; margin-bottom:8px; font-size:0.85rem; color:#7f1d1d;">
+            ⚠️ <b>{len(df_nodate)} Training = Yes feature(s)</b> have <b>no Recording Date</b> —
+            these appear in the Total above but in none of the GA+ Planned columns.
+            Please ask the CDLs below to schedule recording dates.
+            {f'<br><span style="color:#9a3412;">({dropped_nodate} additional dropped feature(s) also lack dates — excluded here as they will never be scheduled.)</span>' if dropped_nodate > 0 else ''}
+        </div>""", unsafe_allow_html=True)
+
+        # Summary — Pillar & CDL wise
+        nodate_summary = df_nodate.groupby(['Pillar', 'CDL Name']).size().reset_index(name='# Features Without Recording Date')
+        nodate_summary = nodate_summary.sort_values('# Features Without Recording Date', ascending=False).reset_index(drop=True)
+        nodate_with_total = add_total_row(nodate_summary, label_col='Pillar')
+        nodate_with_total['# Features Without Recording Date'] = nodate_with_total['# Features Without Recording Date'].astype(int)
+        st.dataframe(style_with_total(nodate_with_total, label_col='Pillar'),
+                     use_container_width=True, column_config=col_config_compact(nodate_with_total))
+
+        # Feature-level detail
+        st.markdown('<div class="section-header">Feature Detail</div>', unsafe_allow_html=True)
+        nd_cols = ['Pillar', 'Product', 'Feature', 'CDL Name', 'Feature Category',
+                   'Feature Classification', 'Final Overall Status']
+        nd_cols = [c for c in nd_cols if c in df_nodate.columns]
+        df_nodate_detail = df_nodate[nd_cols].reset_index(drop=True)
+        st.dataframe(df_nodate_detail, use_container_width=True,
+                     column_config=col_config_compact(df_nodate_detail))
+        st.download_button("⬇️ Download Recording Dates Pending List",
+                           export_excel(df_nodate_detail),
+                           "report13_recording_dates_pending.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                           key="dl_r13_nodate")
 # ─────────────────────────────────────────────
 # REPORT 14: Daily CDL Status Report
 # ─────────────────────────────────────────────
