@@ -1391,6 +1391,21 @@ elif selected_report == "9️⃣  Feature Overall Status":
         pivot = pivot[cols_present]
         pivot['Total'] = pivot.sum(axis=1)
 
+        # Split status 'Not Set' by training value
+        ns = df_src[df_src['Final Overall Status'] == 'Not Set']
+        ns_split = {
+            'Not Set (Training = Yes/TBD)': ns[ns['Training Required? '].isin(['Yes', 'TBD'])].groupby('Pillar').size(),
+            'Not Set (Training = Not Set)': ns[ns['Training Required? '] == 'Not Set'].groupby('Pillar').size(),
+            'Not Set (Training = No)':      ns[ns['Training Required? '] == 'No'].groupby('Pillar').size(),
+        }
+        ns_cols = []
+        for col, series in ns_split.items():
+            vals = series.reindex(pivot.index).fillna(0).astype(int)
+            if vals.sum() > 0:
+                pivot[col] = vals
+                ns_cols.append(col)
+        pivot = pivot.drop(columns=['Not Set'])
+        cols_present = [c for c in cols_present if c != 'Not Set'] + ns_cols
         # Training counts per pillar: Yes / TBD / Not Set / No
         tr = df_src.groupby(['Pillar', 'Training Required? ']).size().unstack(fill_value=0)
         for label in ['Yes', 'TBD', 'Not Set', 'No']:
