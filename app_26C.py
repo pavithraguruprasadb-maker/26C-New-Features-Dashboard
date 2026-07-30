@@ -1343,7 +1343,7 @@ elif selected_report == "8️⃣  Released Videos (incl. Unboxing)":
 elif selected_report == "9️⃣  Feature Overall Status":
     st.markdown('<div class="section-header">Feature Count by Final Overall Status — Pillar Wise</div>', unsafe_allow_html=True)
     df_filtered = render_report_filters(df_filtered, 'r9', has_cdl=True)
-    st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.82rem; color:#444;">📌 <b>Note:</b> This report includes only features where <b>Training Required = Yes</b> or <b>TBD</b>. Features with Training = No or blank are excluded from all charts and tables below.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.82rem; color:#444;">📌 <b>Note:</b> New Features tab includes features where <b>Training Required = Yes, TBD or Not Set (blank)</b>; Training = No is excluded. Unboxing tab shows <b>all</b> unboxing videos regardless of Training Required.</div>', unsafe_allow_html=True)
     ga_base_r9 = pd.Timestamp('2026-07-03'); valid_from_r9 = pd.Timestamp('2020-01-01')
     def get_ga_tier_r9(date, base):
         if pd.isna(date): return None
@@ -1351,18 +1351,24 @@ elif selected_report == "9️⃣  Feature Overall Status":
         diff = (date - base).days; tier = ((diff - 1) // 7) + 1
         return f'GA+{tier}'
     df_r9 = df_filtered.copy()
-    df_r9['Training Required? '] = df_r9['Training Required? '].fillna('Not Set')
-    df_r9 = df_r9[df_r9['Training Required? '].isin(['Yes', 'TBD'])].copy()
-    df_r9['Final Overall Status'] = df_r9['Final Overall Status'].fillna('Not Set')
+    df_r9['Training Required? '] = (df_r9['Training Required? ']
+                                    .fillna('Not Set').astype(str).str.strip()
+                                    .replace({'': 'Not Set', 'nan': 'Not Set'}))
+    df_r9['Final Overall Status'] = (df_r9['Final Overall Status']
+                                     .fillna('Not Set').astype(str).str.strip()
+                                     .replace({'': 'Not Set', 'nan': 'Not Set'}))
     df_r9['CDL Name']             = df_r9['CDL Name'].fillna('Unassigned')
     for col in ['Recording Date', 'Video Ready Date', 'Actual Release Date']:
         if col in df_r9.columns:
             df_r9[col] = pd.to_datetime(df_r9[col], errors='coerce')
             df_r9[col] = df_r9[col].apply(lambda x: x if pd.notna(x) and x >= valid_from_r9 else pd.NaT)
-    df_r9['Target GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Recording Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Recording Date']) else ('Recording Dates TBD' if row['Training Required? '] in ['Yes', 'TBD'] else ''), axis=1)
-    df_r9['Predicted GA+'] = df_r9.apply(lambda row: get_ga_tier_r9(row['Video Ready Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Video Ready Date']) else ('Recording To Be Submitted' if row['Training Required? '] in ['Yes', 'TBD'] else ''), axis=1)
+    df_r9['Target GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Recording Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Recording Date']) else ('Recording Dates TBD' if row['Training Required? '] in ['Yes', 'TBD', 'Not Set'] else ''), axis=1)
+    df_r9['Predicted GA+'] = df_r9.apply(lambda row: get_ga_tier_r9(row['Video Ready Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Video Ready Date']) else ('Recording To Be Submitted' if row['Training Required? '] in ['Yes', 'TBD', 'Not Set'] else ''), axis=1)
     df_r9['Actual GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Actual Release Date'], ga_base_r9) if row['Final Overall Status'] == 'Released (A)' and pd.notna(row.get('Actual Release Date')) else '', axis=1)
-    df_r9_nf = df_r9[df_r9['Feature Category'] != 'Unboxing'].copy()
+    # NF tab: Yes + TBD + Not Set (Training = No stays excluded — content will never be built)
+    df_r9_nf = df_r9[(df_r9['Feature Category'] != 'Unboxing') &
+                     (df_r9['Training Required? '].isin(['Yes', 'TBD', 'Not Set']))].copy()
+    # Unboxing tab: ALL unboxing videos — no training filter
     df_r9_ub = df_r9[df_r9['Feature Category'] == 'Unboxing'].copy()
     all_statuses = ['Awaiting CDL Date','Development WIP','In Review (A)','In Review Fixes (A)','In Post Production (A)','In QA (A)','In QA Fixes (A)','In Setup (A)','Released (A)','Feature Dropped','Not Set']
     STATUS_COLORS = {'Awaiting CDL Date':'#94a3b8','Development WIP':'#f59e0b','In Review (A)':'#4f46e5','In Review Fixes (A)':'#7c3aed','In Post Production (A)':'#0ea5e9','In QA (A)':'#10b981','In QA Fixes (A)':'#34d399','In Setup (A)':'#a855f7','Released (A)':'#16a34a','Feature Dropped':'#ef4444','Not Set':'#e2e8f0'}
@@ -1378,24 +1384,31 @@ elif selected_report == "9️⃣  Feature Overall Status":
         pivot = df_src.groupby(['Pillar','Final Overall Status']).size().unstack(fill_value=0)
         for s in all_statuses:
             if s not in pivot.columns: pivot[s] = 0
-        cols_present = [s for s in all_statuses if s in pivot.columns]
+        # Keep known statuses in lifecycle order, then append any unexpected values so nothing is dropped
+        known   = [s for s in all_statuses if s in pivot.columns]
+        unknown = [c for c in pivot.columns if c not in all_statuses]
+        cols_present = known + unknown
         pivot = pivot[cols_present]
         pivot['Total'] = pivot.sum(axis=1)
 
-        # Training = Yes / TBD counts per pillar
-        tr_yes = df_src[df_src['Training Required? '] == 'Yes'].groupby('Pillar').size()
-        tr_tbd = df_src[df_src['Training Required? '] == 'TBD'].groupby('Pillar').size()
-        pivot['Training = Yes'] = pivot.index.map(lambda p: int(tr_yes.get(p, 0)))
-        pivot['Training = TBD'] = pivot.index.map(lambda p: int(tr_tbd.get(p, 0)))
+        # Training counts per pillar: Yes / TBD / Not Set / No
+        tr = df_src.groupby(['Pillar', 'Training Required? ']).size().unstack(fill_value=0)
+        for label in ['Yes', 'TBD', 'Not Set', 'No']:
+            col = f'Training = {label}'
+            pivot[col] = (tr[label].reindex(pivot.index).fillna(0).astype(int)
+                          if label in tr.columns else 0)
+        if pivot['Training = No'].sum() == 0:
+            pivot = pivot.drop(columns=['Training = No'])  # hidden on NF tab, visible on Unboxing tab
 
-        # Pending = Total (Yes+TBD) − Released − Dropped
+        # Pending = Total − Released − Dropped
         released = pivot['Released (A)'] if 'Released (A)' in pivot.columns else 0
         dropped  = pivot['Feature Dropped'] if 'Feature Dropped' in pivot.columns else 0
         pivot['Pending'] = pivot['Total'] - released - dropped
 
         pivot = pivot.reset_index()
         # Reorder: Pillar, training counts first, then statuses, then Total, Pending
-        ordered = ['Pillar', 'Training = Yes', 'Training = TBD'] + cols_present + ['Total', 'Pending']
+        tr_cols = [c for c in ['Training = Yes', 'Training = TBD', 'Training = Not Set', 'Training = No'] if c in pivot.columns]
+        ordered = ['Pillar'] + tr_cols + cols_present + ['Total', 'Pending']
         pivot = pivot[[c for c in ordered if c in pivot.columns]]
         return add_total_row(pivot)
     def render_pivot_table(pivot_df):
@@ -1418,7 +1431,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
         render_pivot_table(build_pivot(df_r9_nf))
         st.markdown("---")
         sel_nf = st.selectbox("Filter by Status", ['All'] + sorted(df_r9_nf['Final Overall Status'].unique().tolist()), key='sel_nf')
-        nf_detail_cols = ['Pillar','Product','Module','Feature','CDL Name','Final Overall Status','Feature Category','Target GA+','Predicted GA+','Actual GA+']
+        nf_detail_cols = ['Pillar','Product','Module','Feature','CDL Name','Training Required? ','Final Overall Status','Feature Category','Target GA+','Predicted GA+','Actual GA+']
         nf_detail_cols_available = [c for c in nf_detail_cols if c in df_r9_nf.columns]
         det_nf = df_r9_nf[nf_detail_cols_available].copy()
         if sel_nf != 'All': det_nf = det_nf[det_nf['Final Overall Status'] == sel_nf]
@@ -1437,7 +1450,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
             render_pivot_table(build_pivot(df_r9_ub))
             st.markdown("---")
             sel_ub = st.selectbox("Filter by Status", ['All'] + sorted(df_r9_ub['Final Overall Status'].unique().tolist()), key='sel_ub')
-            ub_detail_cols = ['Pillar','Product','Feature','CDL Name','Final Overall Status','Target GA+','Predicted GA+','Actual GA+']
+            ub_detail_cols = ['Pillar','Product','Feature','CDL Name','Training Required? ','Final Overall Status','Target GA+','Predicted GA+','Actual GA+']
             ub_detail_cols_available = [c for c in ub_detail_cols if c in df_r9_ub.columns]
             det_ub = df_r9_ub[ub_detail_cols_available].copy()
             if sel_ub != 'All': det_ub = det_ub[det_ub['Final Overall Status'] == sel_ub]
