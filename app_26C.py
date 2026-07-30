@@ -1337,14 +1337,13 @@ elif selected_report == "8️⃣  Released Videos (incl. Unboxing)":
         detail_unbox = df_rel_unbox[unbox_detail_cols_available].reset_index(drop=True)
         st.dataframe(detail_unbox, use_container_width=True, column_config=col_config_compact(detail_unbox))
         st.download_button("⬇️ Download Released Unboxing Report", export_excel(detail_unbox), "report8_released_unboxing.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
 # ─────────────────────────────────────────────
 # REPORT 9: Feature Overall Status
 # ─────────────────────────────────────────────
 elif selected_report == "9️⃣  Feature Overall Status":
     st.markdown('<div class="section-header">Feature Count by Final Overall Status — Pillar Wise</div>', unsafe_allow_html=True)
     df_filtered = render_report_filters(df_filtered, 'r9', has_cdl=True)
-    st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.82rem; color:#444;">📌 <b>Note:</b> New Features tab includes features where <b>Training Required = Yes, TBD or Not Set (blank)</b>; Training = No is excluded. Unboxing tab shows <b>all</b> unboxing videos regardless of Training Required.</div>', unsafe_allow_html=True)
+    st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:8px; font-size:0.82rem; color:#444;">📌 <b>Note:</b> The New Features tab shows features marked Training Required = Yes, TBD, or left blank. Features marked "No" are not shown (no video will be made for them). The Unboxing tab shows <b>every</b> unboxing video.</div>', unsafe_allow_html=True)
     ga_base_r9 = pd.Timestamp('2026-07-03'); valid_from_r9 = pd.Timestamp('2020-01-01')
     def get_ga_tier_r9(date, base):
         if pd.isna(date): return None
@@ -1366,12 +1365,11 @@ elif selected_report == "9️⃣  Feature Overall Status":
     df_r9['Target GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Recording Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Recording Date']) else ('Recording Dates TBD' if row['Training Required? '] in ['Yes', 'TBD', 'Not Set'] else ''), axis=1)
     df_r9['Predicted GA+'] = df_r9.apply(lambda row: get_ga_tier_r9(row['Video Ready Date'] + pd.Timedelta(days=4), ga_base_r9) if pd.notna(row['Video Ready Date']) else ('Recording To Be Submitted' if row['Training Required? '] in ['Yes', 'TBD', 'Not Set'] else ''), axis=1)
     df_r9['Actual GA+']    = df_r9.apply(lambda row: get_ga_tier_r9(row['Actual Release Date'], ga_base_r9) if row['Final Overall Status'] == 'Released (A)' and pd.notna(row.get('Actual Release Date')) else '', axis=1)
-    # NF tab: Yes + TBD + Not Set (Training = No stays excluded — content will never be built)
+    # NF tab: Yes + TBD + Not Set (Training = No stays excluded — no video will be made)
     df_r9_nf = df_r9[(df_r9['Feature Category'] != 'Unboxing') &
                      (df_r9['Training Required? '].isin(['Yes', 'TBD', 'Not Set']))].copy()
     # Unboxing tab: ALL unboxing videos — no training filter
     df_r9_ub = df_r9[df_r9['Feature Category'] == 'Unboxing'].copy()
-    all_statuses = ['Awaiting CDL Date','Development WIP','In Review (A)','In Review Fixes (A)','In Post Production (A)','In QA (A)','In QA Fixes (A)','In Setup (A)','Released (A)','Feature Dropped','Not Set']
     STATUS_COLORS = {'Awaiting CDL Date':'#94a3b8','Development WIP':'#f59e0b','In Review (A)':'#4f46e5','In Review Fixes (A)':'#7c3aed','In Post Production (A)':'#0ea5e9','In QA (A)':'#10b981','In QA Fixes (A)':'#34d399','In Setup (A)':'#a855f7','Released (A)':'#16a34a','Feature Dropped':'#ef4444','Not Set':'#e2e8f0'}
     def style_r9_detail(row):
         styles = []
@@ -1381,77 +1379,48 @@ elif selected_report == "9️⃣  Feature Overall Status":
             elif c == 'Actual GA+': styles.append('color: #10b981; font-weight: bold')
             else: styles.append('')
         return styles
+    # ── Every feature is counted in exactly ONE column, so all columns add up to Total ──
+    R9_STATUS_ORDER = ['Awaiting CDL Date','Development WIP','In Review (A)','In Review Fixes (A)','In Post Production (A)','In QA (A)','In QA Fixes (A)','In Setup (A)','Released (A)']
     def build_pivot(df_src):
-        pivot = df_src.groupby(['Pillar','Final Overall Status']).size().unstack(fill_value=0)
-        for s in all_statuses:
-            if s not in pivot.columns: pivot[s] = 0
-        # Keep known statuses in lifecycle order, then append any unexpected values so nothing is dropped
-        known   = [s for s in all_statuses if s in pivot.columns]
-        unknown = [c for c in pivot.columns if c not in all_statuses]
-        cols_present = known + unknown
-        pivot = pivot[cols_present]
+        d = df_src.copy()
+        outc  = d.get('Issue Resolution Outcome', pd.Series('', index=d.index)).fillna('').astype(str).str.strip().str.lower()
+        issue = d.get('Type of Issue', pd.Series('', index=d.index)).fillna('').astype(str).str.strip()
+        def category(i):
+            s = d.at[i, 'Final Overall Status']; t = d.at[i, 'Training Required? ']
+            if s == 'Released (A)': return 'Released (A)'
+            if s == 'Feature Dropped' or outc[i].startswith('dropped'): return 'Feature Dropped'
+            if s != 'Not Set': return s                                     # any in-progress status
+            # from here on, the status is blank:
+            if t == 'Not Set': return 'Training Required field Not set'
+            if t == 'No': return 'No Video (Training = No)'                 # appears on Unboxing tab only
+            if issue[i] != '': return 'NF Issues'
+            return 'Pending'                                                # fits nowhere = tracker not updated
+        d['__cat'] = [category(i) for i in d.index]
+        pivot = d.groupby(['Pillar', '__cat']).size().unstack(fill_value=0)
+        tail = ['Feature Dropped', 'Training Required field Not set', 'NF Issues', 'No Video (Training = No)', 'Pending']
+        for c in R9_STATUS_ORDER + tail:
+            if c not in pivot.columns: pivot[c] = 0
+        extra = [c for c in pivot.columns if c not in R9_STATUS_ORDER + tail]  # unexpected status values stay visible
+        pivot = pivot[R9_STATUS_ORDER + extra + tail]
         pivot['Total'] = pivot.sum(axis=1)
-
-        # Split status 'Not Set' by training value
-        ns = df_src[df_src['Final Overall Status'] == 'Not Set']
-        ns_split = {
-            'Not Set (Training = Yes/TBD)': ns[ns['Training Required? '].isin(['Yes', 'TBD'])].groupby('Pillar').size(),
-            'Not Set (Training = Not Set)': ns[ns['Training Required? '] == 'Not Set'].groupby('Pillar').size(),
-            'Not Set (Training = No)':      ns[ns['Training Required? '] == 'No'].groupby('Pillar').size(),
-        }
-        ns_cols = []
-        for col, series in ns_split.items():
-            vals = series.reindex(pivot.index).fillna(0).astype(int)
-            if vals.sum() > 0:
-                pivot[col] = vals
-                ns_cols.append(col)
-        pivot = pivot.drop(columns=['Not Set'])
-        cols_present = [c for c in cols_present if c != 'Not Set'] + ns_cols
-
-        # Terminal issue outcomes: blank status + Training Yes/TBD + outcome starts with "Dropped" → not pending
-        if 'Issue Resolution Outcome' in df_src.columns and 'Not Set (Training = Yes/TBD)' in pivot.columns:
-            ns_yes = ns[ns['Training Required? '].isin(['Yes', 'TBD'])].copy()
-            outc = ns_yes['Issue Resolution Outcome'].fillna('').astype(str).str.strip().str.lower()
-            blocked = ns_yes[outc.str.startswith('dropped')]
-            blk = blocked.groupby('Pillar').size().reindex(pivot.index).fillna(0).astype(int)
-            if blk.sum() > 0:
-                pivot['Dropped (Issue)'] = blk
-                pivot['Not Set (Training = Yes/TBD)'] = pivot['Not Set (Training = Yes/TBD)'] - blk
-                cols_present = cols_present + ['Dropped (Issue)']
-
-        # Informational: issue tracking for blank-status Yes/TBD features (subsets of Not Set — not added to Total)
-        issue_cols = []
-        if 'Type of Issue' in df_src.columns:
-            ns_yes_all = ns[ns['Training Required? '].isin(['Yes', 'TBD'])]
-            issues = ns_yes_all[ns_yes_all['Type of Issue'].fillna('').astype(str).str.strip() != '']
-            iss = issues.groupby('Pillar').size().reindex(pivot.index).fillna(0).astype(int)
-            if iss.sum() > 0:
-                pivot['NF Issues'] = iss
-                issue_cols.append('NF Issues')
-                if 'Issue Resolution Outcome' in df_src.columns:
-                    no_out = issues[issues['Issue Resolution Outcome'].fillna('').astype(str).str.strip() == '']
-                    pivot['NF Issues (Outcome Not Set)'] = no_out.groupby('Pillar').size().reindex(pivot.index).fillna(0).astype(int)
-                    issue_cols.append('NF Issues (Outcome Not Set)')
-
-        # Training counts per pillar: Yes / TBD / Not Set / No
-        tr = df_src.groupby(['Pillar', 'Training Required? ']).size().unstack(fill_value=0)
-        for label in ['Yes', 'TBD', 'Not Set', 'No']:
-            col = f'Training = {label}'
-            pivot[col] = (tr[label].reindex(pivot.index).fillna(0).astype(int)
-                          if label in tr.columns else 0)
+        if pivot['No Video (Training = No)'].sum() == 0:
+            pivot = pivot.drop(columns=['No Video (Training = No)'])
+        # Info only (not added into Total): training decision missing, but work already has a status
+        tns = d[(d['Training Required? '] == 'Not Set') & (d['Final Overall Status'] != 'Not Set')]
+        pivot['Training Not Set (Status Present)'] = tns.groupby('Pillar').size().reindex(pivot.index).fillna(0).astype(int)
+        if pivot['Training Not Set (Status Present)'].sum() == 0:
+            pivot = pivot.drop(columns=['Training Not Set (Status Present)'])
+        # Training counts per pillar (Yes / TBD / No). "No" auto-hides when empty.
+        tr = d.groupby(['Pillar', 'Training Required? ']).size().unstack(fill_value=0)
+        for label in ['Yes', 'TBD', 'No']:
+            pivot[f'Training = {label}'] = (tr[label].reindex(pivot.index).fillna(0).astype(int)
+                                            if label in tr.columns else 0)
         if pivot['Training = No'].sum() == 0:
-            pivot = pivot.drop(columns=['Training = No'])  # hidden on NF tab, visible on Unboxing tab
-
-        # Pending = Total − Released − Feature Dropped − Dropped (Issue)
-        released    = pivot['Released (A)'] if 'Released (A)' in pivot.columns else 0
-        dropped     = pivot['Feature Dropped'] if 'Feature Dropped' in pivot.columns else 0
-        blocked_col = pivot['Dropped (Issue)'] if 'Dropped (Issue)' in pivot.columns else 0
-        pivot['Pending'] = pivot['Total'] - released - dropped - blocked_col
-
+            pivot = pivot.drop(columns=['Training = No'])
         pivot = pivot.reset_index()
-        # Reorder: Pillar, training counts first, then statuses, then issue info, then Total, Pending
-        tr_cols = [c for c in ['Training = Yes', 'Training = TBD', 'Training = Not Set', 'Training = No'] if c in pivot.columns]
-        ordered = ['Pillar'] + tr_cols + cols_present + issue_cols + ['Total', 'Pending']
+        tr_cols  = [c for c in ['Training = Yes', 'Training = TBD', 'Training = No'] if c in pivot.columns]
+        end_cols = [c for c in ['Feature Dropped', 'Training Required field Not set', 'Training Not Set (Status Present)', 'NF Issues', 'No Video (Training = No)'] if c in pivot.columns]
+        ordered = ['Pillar'] + tr_cols + R9_STATUS_ORDER + extra + end_cols + ['Total', 'Pending']
         pivot = pivot[[c for c in ordered if c in pivot.columns]]
         return add_total_row(pivot)
     def render_pivot_table(pivot_df):
@@ -1472,10 +1441,15 @@ elif selected_report == "9️⃣  Feature Overall Status":
         fig_nf.update_layout(plot_bgcolor='white', paper_bgcolor='white', margin=dict(t=60, b=80), legend=dict(orientation='h', yanchor='top', y=-0.2, xanchor='center', x=0.5, title_text=''))
         st.plotly_chart(fig_nf, use_container_width=True)
         render_pivot_table(build_pivot(df_r9_nf))
-        st.markdown('<div style="background-color:#eef2ff; padding:8px 14px; border-radius:6px; border-left:4px solid #4f46e5; margin-top:4px; margin-bottom:6px; font-size:0.8rem; color:#444;">🔵 <b>Not Set (Training = Yes/TBD):</b> Features already <b>confirmed</b> for training content (Training Required = Yes or TBD), but whose <b>Final Overall Status is blank</b> in the tracker. These represent a <b>tracking gap</b> — the work is committed, but progress has not been updated. Action: CDLs should update the status for these features.</div>', unsafe_allow_html=True)
-        st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:6px; font-size:0.8rem; color:#444;">🟠 <b>Not Set (Training = Not Set):</b> Features where the <b>Training Required field itself is blank</b> — no decision has been made yet on whether training content will be built. These represent a <b>decision gap</b>. Action: mark each as Yes, TBD, or No; features marked No will automatically drop out of this report.</div>', unsafe_allow_html=True)
-        st.markdown('<div style="background-color:#fef2f2; padding:8px 14px; border-radius:6px; border-left:4px solid #ef4444; margin-bottom:6px; font-size:0.8rem; color:#444;">🔴 <b>Dropped (Issue):</b> Features confirmed for training (Yes/TBD) with no status, whose <b>Issue Resolution Outcome is any "Dropped" reason</b> (Bug, Extensive Setup, Env not supported, or moved to 26D). These cannot or will not be developed in 26C, so they are <b>excluded from Pending</b>. This column appears only when such features exist.</div>', unsafe_allow_html=True)
-        st.markdown('<div style="background-color:#f0fdf4; padding:8px 14px; border-radius:6px; border-left:4px solid #16a34a; margin-bottom:8px; font-size:0.8rem; color:#444;">🟢 <b>NF Issues / NF Issues (Outcome Not Set):</b> Of the blank-status Yes/TBD features, how many have an <b>issue reported</b>, and how many of those are still <b>awaiting a resolution outcome</b> from the PM team. Informational only — these are subsets of Not Set (Training = Yes/TBD) and are not added into Total.</div>', unsafe_allow_html=True)
+        st.markdown('''<div style="background-color:#f8fafc; padding:10px 14px; border-radius:6px; border-left:4px solid #64748b; margin-top:4px; margin-bottom:8px; font-size:0.8rem; color:#444; line-height:1.9;">
+<b>How to read this table</b> — every feature is counted in exactly one column, so all columns add up to Total.<br>
+🟢 <b>Released (A)</b> — video is published and done.<br>
+🔵 <b>Awaiting CDL Date → In Setup</b> — video is being worked on; the column shows which stage it has reached.<br>
+🔴 <b>Feature Dropped</b> — no video will be made. Either the status says "Feature Dropped", or the PM team's answer to a reported problem was "Dropped" (bug, heavy setup, environment issue, or moved to 26D).<br>
+🟠 <b>Training Required field Not set</b> — no one has decided yet whether this feature needs a video (the Training Required box is empty, and no work has started).<br>
+🟣 <b>NF Issues</b> — the CDL hit a problem, reported it, and is waiting for the PM team's answer. Work is on hold, not forgotten.<br>
+⚠️ <b>Pending</b> — fits none of the above: no progress, no problem reported, no decision. <b>This should always be 0.</b> Any number here means the tracker needs updating.
+</div>''', unsafe_allow_html=True)
         st.markdown("---")
         sel_nf = st.selectbox("Filter by Status", ['All'] + sorted(df_r9_nf['Final Overall Status'].unique().tolist()), key='sel_nf')
         nf_detail_cols = ['Pillar','Product','Module','Feature','CDL Name','Training Required? ','Final Overall Status','Type of Issue','Issue Resolution Outcome','Feature Category','Target GA+','Predicted GA+','Actual GA+']
@@ -1495,9 +1469,13 @@ elif selected_report == "9️⃣  Feature Overall Status":
             fig_ub.update_layout(plot_bgcolor='white', paper_bgcolor='white', margin=dict(t=60, b=80), legend=dict(orientation='h', yanchor='top', y=-0.2, xanchor='center', x=0.5, title_text=''))
             st.plotly_chart(fig_ub, use_container_width=True)
             render_pivot_table(build_pivot(df_r9_ub))
-            st.markdown('<div style="background-color:#eef2ff; padding:8px 14px; border-radius:6px; border-left:4px solid #4f46e5; margin-top:4px; margin-bottom:6px; font-size:0.8rem; color:#444;">🔵 <b>Not Set (Training = Yes/TBD):</b> Unboxing videos confirmed for production, but whose <b>Final Overall Status is blank</b> — tracking gap; status needs updating.</div>', unsafe_allow_html=True)
-            st.markdown('<div style="background-color:#fffbeb; padding:8px 14px; border-radius:6px; border-left:4px solid #f59e0b; margin-bottom:6px; font-size:0.8rem; color:#444;">🟠 <b>Not Set (Training = Not Set):</b> Unboxing videos where the <b>Training Required field is blank</b> — decision gap; needs to be marked Yes, TBD, or No.</div>', unsafe_allow_html=True)
-            st.markdown('<div style="background-color:#f8fafc; padding:8px 14px; border-radius:6px; border-left:4px solid #94a3b8; margin-bottom:8px; font-size:0.8rem; color:#444;">⚪ <b>Not Set (Training = No):</b> Unboxing videos marked as <b>not requiring</b> training content, with no status recorded. Shown for completeness only — no action expected.</div>', unsafe_allow_html=True)
+            st.markdown('''<div style="background-color:#f8fafc; padding:10px 14px; border-radius:6px; border-left:4px solid #64748b; margin-top:4px; margin-bottom:8px; font-size:0.8rem; color:#444; line-height:1.9;">
+<b>How to read this table</b> — every video is counted in exactly one column, so all columns add up to Total.<br>
+🟢 <b>Released (A)</b> — video published. &nbsp;🔵 <b>Other status columns</b> — video in progress at that stage. &nbsp;🔴 <b>Feature Dropped</b> — video will not be made.<br>
+⚪ <b>No Video (Training = No)</b> — marked as not needing a video; shown here just for completeness.<br>
+🟡 <b>Training Not Set (Status Present)</b> — work has started but the Training Required box was never filled in. Info only (already counted in its status column) — please get the box filled.<br>
+⚠️ <b>Pending</b> — fits nowhere: no progress, no problem, no decision. <b>Should always be 0.</b>
+</div>''', unsafe_allow_html=True)
             st.markdown("---")
             sel_ub = st.selectbox("Filter by Status", ['All'] + sorted(df_r9_ub['Final Overall Status'].unique().tolist()), key='sel_ub')
             ub_detail_cols = ['Pillar','Product','Feature','CDL Name','Training Required? ','Final Overall Status','Type of Issue','Issue Resolution Outcome','Target GA+','Predicted GA+','Actual GA+']
