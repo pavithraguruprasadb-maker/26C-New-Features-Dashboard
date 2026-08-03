@@ -2492,6 +2492,13 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         rac_start   = _rac_lookup(cdl, rac_start_map,   default=None)
         rac_end     = _rac_lookup(cdl, rac_end_map,     default=None)
         rac_total   = _rac_lookup(cdl, rac_total_map,   default=None)
+
+        # ── Features/day as per RAC: (Actual NF + Actual Unboxing) ÷ total RAC-allotted days (L column) ──
+        if rac_total is not None and float(rac_total) > 0:
+            features_per_day_rac = round((actual_nf + actual_unbox) / float(rac_total), 1)
+        else:
+            features_per_day_rac = 0.0
+
         if rac_elapsed is None:
             rac_target = 0
             rac_status_label = 'Not in RAC Calendar'
@@ -2636,6 +2643,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'Details of Issue Faced': issues_consolidation,
             'No of Days Worked': days_worked,
             'Number of Features Developed / Day': features_per_day,
+            'Number of Features Developed / Day as per RAC': features_per_day_rac,
             'CDL Status Consolidation on Pending Features': consolidation,
         })
 
@@ -2759,7 +2767,8 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             else:
                 styles[idx] = 'color: #1a1a2e; font-weight: bold; text-align: left'
         for _rc in [RAC_DAYS_COL, RAC_LAST_COL, RAC_GA_COL,
-                    'Expected Completion based on RAC Schedule']:
+                    'Expected Completion based on RAC Schedule',
+                    'Number of Features Developed / Day as per RAC']:
             if _rc in cols:
                 styles[cols.index(_rc)] = 'color: #7c3aed; font-weight: bold'
         return styles
@@ -2772,6 +2781,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             '# NF Released to Production', '# Unboxing Released to Production',
             '# Features Dropped', '# SR Raised', 'No of Days Worked',
             'Number of Features Developed / Day',
+            'Number of Features Developed / Day as per RAC',
             'Expected Completion based on RAC Schedule',
             RAC_DAYS_COL
         ]
@@ -2807,7 +2817,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         <b>📌 Completion rule:</b> A video counts as submitted when its <b>Video Ready Date</b> is filled, <b>or</b> its Final Overall Status has already moved past recording (In Review / Post Production / QA / Setup / Released) — so a missing date alone no longer marks a CDL as Delayed.<br>
         <b>🟠 Behind Pace (RAC days remaining till &lt;date&gt;)</b> — behind the 3/day pace, but RAC days are still allotted and the pending work fits in them; recoverable. <b>🔴 Delayed (Cannot finish in allotted RAC days)</b> — pending work exceeds remaining allotted capacity; needs more RAC days. <b>🔴 Delayed (RAC window over)</b> — last allotted RAC day has passed with features still pending.<br>
         <b>📅 RAC-based pace:</b> <b>Expected Completion based on RAC Schedule</b> = 3 × the number of 26C NF days already elapsed in the RAC calendar (fractions counted; today's cell excluded until the day is over), capped at total assigned. <b>Status as per RAC</b> applies the same rules but measures delay against this RAC-based target — so a CDL is only expected to deliver for days actually allotted to 26C NF.<br>
-        <b>📅 RAC columns:</b> <b>Days allotted</b> = count of 26C NF cells in the sprint RAC calendar from 06-Jul (shared-day cells counted as fractions; struck-through entries treated as cancelled). <b>Last date as per RAC calendar</b> = the latest calendar day containing a live 26C NF entry for that CDL. <b>GA+ Release as per RAC</b> = that last RAC date + 4 days mapped to GA+ tiers (same convention as GA+X). All four RAC-sourced data columns share the lavender fill in the Excel export.
+        <b>📅 RAC columns:</b> <b>Days allotted</b> = count of 26C NF cells in the sprint RAC calendar from 06-Jul (shared-day cells counted as fractions; struck-through entries treated as cancelled). <b>Last date as per RAC calendar</b> = the latest calendar day containing a live 26C NF entry for that CDL. <b>GA+ Release as per RAC</b> = that last RAC date + 4 days mapped to GA+ tiers (same convention as GA+X). <b>Number of Features Developed / Day as per RAC</b> = (Actual NF Completion + Actual Unboxing Completion) ÷ Days allotted per the RAC calendar — the pace measured against the CDL's full RAC-allotted capacity rather than elapsed working days. All five RAC-sourced data columns share the lavender fill in the Excel export.
     </div>""", unsafe_allow_html=True)
 
     def generate_r14_excel(df):
@@ -2904,7 +2914,8 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
                 elif col_name in ['Exact Number of Days allotted for NF Analysis and Content Development',
                                   'Last date as per RAC calendar',
                                   'GA+ Release as per RAC',
-                                  'Expected Completion based on RAC Schedule']:
+                                  'Expected Completion based on RAC Schedule',
+                                  'Number of Features Developed / Day as per RAC']:
                     cell.fill      = rac_fill
                     cell.font      = Font(name='Arial', size=9, bold=True, color='5B2C87')
                     cell.alignment = center
@@ -2940,6 +2951,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             'Details of Issue Faced': 45,
             'No of Days Worked': 12,
             'Number of Features Developed / Day': 16,
+            'Number of Features Developed / Day as per RAC': 18,
             'CDL Status Consolidation on Pending Features': 60
         }
         for c_idx, col in enumerate(df.columns, 1):
