@@ -2000,7 +2000,7 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
     # ─────────────────────────────────────────────
     # Simple Pillar-wise NF Release Summary (all NF, regardless of Training)
     # ─────────────────────────────────────────────
-    st.markdown('<div class="section-header">📌 Overall NF Release Summary — Pillar Wise</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">📌 Overall NF Release Summary Against RCB Release — Pillar Wise</div>', unsafe_allow_html=True)
     df_r13_nf_rcb = df_r13[df_r13['Feature Category'] != 'Unboxing'].copy()
     simple_rows = []
     for pg in pillar_groups_r13:
