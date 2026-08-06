@@ -1956,6 +1956,39 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
     &bull; <b>Total</b> = NF (Yes) + Unboxing (Yes). Features with Training Required = <b>Not Set / TBD / No</b> are <b>excluded</b> from this total.<br>
     &bull; <b>% Released</b> = Total Released ÷ Total (Training=Yes features only) per pillar.
     </div>""", unsafe_allow_html=True)
+    # ─────────────────────────────────────────────
+    # Simple Pillar-wise NF Release Summary (all NF, regardless of Training)
+    # ─────────────────────────────────────────────
+    st.markdown('<div class="section-header">📌 Overall NF Release Summary — Pillar Wise</div>', unsafe_allow_html=True)
+    df_r13_nf_rcb = df_r13[df_r13['Feature Category'] != 'Unboxing'].copy()
+    simple_rows = []
+    for pg in pillar_groups_r13:
+        pg_nf_all   = df_r13_nf_rcb[df_r13_nf_rcb['Pillar Group'] == pg]
+        total_nf_pg = len(pg_nf_all)
+        rel_nf_pg   = len(pg_nf_all[pg_nf_all['Final Overall Status'] == 'Released (A)'])
+        pct_pg      = round(rel_nf_pg / total_nf_pg * 100, 1) if total_nf_pg > 0 else 0.0
+        simple_rows.append({
+            'Pillar': pg,
+            'No Of NFs Released in RCB': total_nf_pg,
+            'No Of NFs Developed and released': rel_nf_pg,
+            '% of Release': f'{pct_pg}%',
+        })
+    total_nf_all  = sum(r['No Of NFs Released in RCB'] for r in simple_rows)
+    total_rel_all = sum(r['No Of NFs Developed and released'] for r in simple_rows)
+    total_pct_all = round(total_rel_all / total_nf_all * 100, 1) if total_nf_all > 0 else 0.0
+    simple_rows.append({
+        'Pillar': 'Total',
+        'No Of NFs Released in RCB': total_nf_all,
+        'No Of NFs Developed and released': total_rel_all,
+        '% of Release': f'{total_pct_all}%',
+    })
+    df_simple = pd.DataFrame(simple_rows)
+    def style_simple_table(row):
+        if row['Pillar'] == 'Total':
+            return ['font-weight: bold; background-color: #f0f0f0'] * len(row)
+        return [''] * len(row)
+    st.dataframe(df_simple.style.apply(style_simple_table, axis=1).hide(axis='index'),
+                 use_container_width=True, column_config=col_config_compact(df_simple))
     st.markdown("---")
     st.markdown('<div class="section-header">⬇️ Download for Email</div>', unsafe_allow_html=True)
     from openpyxl import Workbook
