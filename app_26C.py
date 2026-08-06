@@ -1957,6 +1957,47 @@ elif selected_report == "1️⃣3️⃣  26C New Features Release Dashboard":
     &bull; <b>% Released</b> = Total Released ÷ Total (Training=Yes features only) per pillar.
     </div>""", unsafe_allow_html=True)
     # ─────────────────────────────────────────────
+    # Small Table — Total Released broken into NF vs Unboxing
+    # ─────────────────────────────────────────────
+    st.markdown('<div class="section-header">📌 Released Breakdown — NF vs Unboxing</div>', unsafe_allow_html=True)
+    breakdown_rows = []
+    for pg in pillar_groups_r13:
+        pg_nf    = df_r13_nf[df_r13_nf['Pillar Group'] == pg]
+        pg_unbox = df_r13_unbox[df_r13_unbox['Pillar Group'] == pg]
+        total_pg     = len(pg_nf) + len(pg_unbox)
+        nf_rel_pg    = len(pg_nf[pg_nf['Final Overall Status'] == 'Released (A)'])
+        unbox_rel_pg = len(pg_unbox[pg_unbox['Final Overall Status'] == 'Released (A)'])
+        total_rel_pg = nf_rel_pg + unbox_rel_pg
+        pct_pg       = round(total_rel_pg / total_pg * 100, 1) if total_pg > 0 else 0.0
+        breakdown_rows.append({
+            'Pillar': pg,
+            'Total': total_pg,
+            'Total Released': total_rel_pg,
+            'NF Released': nf_rel_pg,
+            'Unboxing Released': unbox_rel_pg,
+            '% Released': f'{pct_pg}%',
+        })
+    total_all      = sum(r['Total'] for r in breakdown_rows)
+    total_rel_all  = sum(r['Total Released'] for r in breakdown_rows)
+    total_nf_rel   = sum(r['NF Released'] for r in breakdown_rows)
+    total_unbox_rel = sum(r['Unboxing Released'] for r in breakdown_rows)
+    total_pct_all  = round(total_rel_all / total_all * 100, 1) if total_all > 0 else 0.0
+    breakdown_rows.append({
+        'Pillar': 'Total',
+        'Total': total_all,
+        'Total Released': total_rel_all,
+        'NF Released': total_nf_rel,
+        'Unboxing Released': total_unbox_rel,
+        '% Released': f'{total_pct_all}%',
+    })
+    df_breakdown = pd.DataFrame(breakdown_rows)
+    def style_breakdown_table(row):
+        if row['Pillar'] == 'Total':
+            return ['font-weight: bold; background-color: #f0f0f0'] * len(row)
+        return [''] * len(row)
+    st.dataframe(df_breakdown.style.apply(style_breakdown_table, axis=1).hide(axis='index'),
+                 use_container_width=True, column_config=col_config_compact(df_breakdown))
+    # ─────────────────────────────────────────────
     # Simple Pillar-wise NF Release Summary (all NF, regardless of Training)
     # ─────────────────────────────────────────────
     st.markdown('<div class="section-header">📌 Overall NF Release Summary — Pillar Wise</div>', unsafe_allow_html=True)
