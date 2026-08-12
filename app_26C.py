@@ -2441,7 +2441,7 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
             recording_evident = _submitted(frow)
             if cat == 'Unboxing': return recording_evident
             if fc in ['Single NF', 'Combined Primary NF']: return recording_evident
-        if fc == 'Combined Bundled NF':
+            if fc == 'Combined Bundled NF':
             # A feature already submitted/released is complete even if its issue
             # history remains populated in the raw data.
             if status in POST_RECORDING_STATUSES: return True
