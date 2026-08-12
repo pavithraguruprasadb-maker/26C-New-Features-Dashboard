@@ -2433,23 +2433,35 @@ elif selected_report == "1️⃣4️⃣  Daily CDL Status Report":
         # ── FALLBACK applied here: a feature counts as completed when its
         #    Video Ready Date is set, OR its Final Overall Status is a stage
         #    that can only exist after the recording was submitted. ──
-        def is_feature_completed(frow):
-            fc   = str(frow.get(fc_col, '') or '').strip()
+                def is_feature_completed(frow):
+            fc = str(frow.get(fc_col, '') or '').strip()
             cfvn = str(frow.get('Combined Feature Video Name', '') or '').strip()
-            cat  = str(frow.get('Feature Category', '') or '').strip()
+            cat = str(frow.get('Feature Category', '') or '').strip()
             status = str(frow.get('Final Overall Status', '') or '').strip()
             recording_evident = _submitted(frow)
-            if cat == 'Unboxing': return recording_evident
-            if fc in ['Single NF', 'Combined Primary NF']: return recording_evident
+
+            if cat == 'Unboxing':
+                return recording_evident
+
+            if fc in ['Single NF', 'Combined Primary NF']:
+                return recording_evident
+
             if fc == 'Combined Bundled NF':
-            # A feature already submitted/released is complete even if its issue
-            # history remains populated in the raw data.
-            if status in POST_RECORDING_STATUSES: return True
-            # For features not yet submitted, an active issue prevents completion
-            # through the linked primary video.
-            if is_feature_blocked(frow): return False
-            return cfvn in completed_primary_videos
-            if fc in ['', 'nan', 'none', 'NaN']: return recording_evident
+                # Released/submitted features are complete even if historical
+                # issue details remain in the raw data.
+                if status in POST_RECORDING_STATUSES:
+                    return True
+
+                # For features not yet submitted, an active issue blocks
+                # completion through the linked primary video.
+                if is_feature_blocked(frow):
+                    return False
+
+                return cfvn in completed_primary_videos
+
+            if fc in ['', 'nan', 'none', 'NaN']:
+                return recording_evident
+
             return False
 
         # ── blocked & dropped split into NF and Unboxing ──
