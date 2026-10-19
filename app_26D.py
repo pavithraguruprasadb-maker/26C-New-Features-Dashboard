@@ -1475,7 +1475,12 @@ elif selected_report == "9️⃣  Feature Overall Status":
             if s == 'Feature Dropped' or outc[i].startswith('dropped'):
                 return 'Feature Dropped'
 
-            if d.at[i, 'Covered by Primary Video']:
+                        is_unboxing = (
+                str(d.at[i, 'Feature Category']).strip().casefold()
+                == 'unboxing'
+            )
+
+            if not is_unboxing and d.at[i, 'Covered by Primary Video']:
                 return COMBINED_R9
 
             if s != 'Not Set':
@@ -1493,14 +1498,24 @@ elif selected_report == "9️⃣  Feature Overall Status":
             return 'Pending'                                               # fits nowhere = tracker not updated
         d['__cat'] = [category(i) for i in d.index]
         pivot = d.groupby(['Pillar', '__cat']).size().unstack(fill_value=0)
-        tail = [
-            COMBINED_R9,
+                tail = [
             'Feature Dropped',
             'Training Required field Not set',
             'NF Issues',
             'No Video (Training = No)',
             'Pending'
         ]
+
+        # Show Combined only in the New Features table.
+        has_new_features = (
+            d['Feature Category']
+            .fillna('').astype(str).str.strip().str.casefold()
+            .ne('unboxing')
+            .any()
+        )
+
+        if has_new_features:
+            tail.insert(0, COMBINED_R9)
         for c in R9_STATUS_ORDER + tail:
             if c not in pivot.columns: pivot[c] = 0
         extra = [c for c in pivot.columns if c not in R9_STATUS_ORDER + tail]  # unexpected status values stay visible
