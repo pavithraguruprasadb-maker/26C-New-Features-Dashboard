@@ -1498,7 +1498,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
             return 'Pending'                                               # fits nowhere = tracker not updated
         d['__cat'] = [category(i) for i in d.index]
         pivot = d.groupby(['Pillar', '__cat']).size().unstack(fill_value=0)
-                tail = [
+        tail = [
             'Feature Dropped',
             'Training Required field Not set',
             'NF Issues',
