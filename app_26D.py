@@ -1465,19 +1465,42 @@ elif selected_report == "9️⃣  Feature Overall Status":
         d = df_src.copy()
         outc  = d.get('Issue Resolution Outcome', pd.Series('', index=d.index)).fillna('').astype(str).str.strip().str.lower()
         issue = d.get('Type of Issue', pd.Series('', index=d.index)).fillna('').astype(str).str.strip()
-        def category(i):
-            s = d.at[i, 'Final Overall Status']; t = d.at[i, 'Training Required? ']
-            if s == 'Released (A)': return 'Released (A)'
-            if s == 'Feature Dropped' or outc[i].startswith('dropped'): return 'Feature Dropped'
-            if s != 'Not Set': return s                                     # any in-progress status
-            # from here on, the status is blank:
-            if t == 'Not Set': return 'Training Required field Not set'
-            if t == 'No': return 'No Video (Training = No)'                 # appears on Unboxing tab only
-            if issue[i] != '': return 'NF Issues'
-            return 'Pending'                                                # fits nowhere = tracker not updated
+                def category(i):
+            s = d.at[i, 'Final Overall Status']
+            t = d.at[i, 'Training Required? ']
+
+            if s == 'Released (A)':
+                return 'Released (A)'
+
+            if s == 'Feature Dropped' or outc[i].startswith('dropped'):
+                return 'Feature Dropped'
+
+            if d.at[i, 'Covered by Primary Video']:
+                return COMBINED_R9
+
+            if s != 'Not Set':
+                return s
+
+            if t == 'Not Set':
+                return 'Training Required field Not set'
+
+            if t == 'No':
+                return 'No Video (Training = No)'
+
+            if issue[i] != '':
+                return 'NF Issues'
+
+            return 'Pending'                                               # fits nowhere = tracker not updated
         d['__cat'] = [category(i) for i in d.index]
         pivot = d.groupby(['Pillar', '__cat']).size().unstack(fill_value=0)
-        tail = ['Feature Dropped', 'Training Required field Not set', 'NF Issues', 'No Video (Training = No)', 'Pending']
+                tail = [
+            COMBINED_R9,
+            'Feature Dropped',
+            'Training Required field Not set',
+            'NF Issues',
+            'No Video (Training = No)',
+            'Pending'
+        ]
         for c in R9_STATUS_ORDER + tail:
             if c not in pivot.columns: pivot[c] = 0
         extra = [c for c in pivot.columns if c not in R9_STATUS_ORDER + tail]  # unexpected status values stay visible
@@ -1499,7 +1522,17 @@ elif selected_report == "9️⃣  Feature Overall Status":
             pivot = pivot.drop(columns=['Training = No'])
         pivot = pivot.reset_index()
         tr_cols  = [c for c in ['Training = Yes', 'Training = TBD', 'Training = No'] if c in pivot.columns]
-        end_cols = [c for c in ['Feature Dropped', 'Training Required field Not set', 'Training Not Set (Status Present)', 'NF Issues', 'No Video (Training = No)'] if c in pivot.columns]
+                end_cols = [
+            c for c in [
+                COMBINED_R9,
+                'Feature Dropped',
+                'Training Required field Not set',
+                'Training Not Set (Status Present)',
+                'NF Issues',
+                'No Video (Training = No)'
+            ]
+            if c in pivot.columns
+        ]
         ordered = ['Pillar'] + tr_cols + R9_STATUS_ORDER + extra + end_cols + ['Total', 'Pending']
         pivot = pivot[[c for c in ordered if c in pivot.columns]]
         return add_total_row(pivot)
