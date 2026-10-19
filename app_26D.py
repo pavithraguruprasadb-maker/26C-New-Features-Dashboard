@@ -1351,7 +1351,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
         diff = (date - base).days; tier = ((diff - 1) // 7) + 1
         return f'GA+{tier}'
     df_r9 = df_filtered.copy()
-        # Identify bundled features covered by a recorded primary video.
+    # Identify bundled features covered by a recorded primary video.
     # Use df so the primary is found even when another CDL is selected.
     combined_source = df.copy()
 
@@ -1465,7 +1465,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
         d = df_src.copy()
         outc  = d.get('Issue Resolution Outcome', pd.Series('', index=d.index)).fillna('').astype(str).str.strip().str.lower()
         issue = d.get('Type of Issue', pd.Series('', index=d.index)).fillna('').astype(str).str.strip()
-                def category(i):
+        def category(i):
             s = d.at[i, 'Final Overall Status']
             t = d.at[i, 'Training Required? ']
 
@@ -1493,7 +1493,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
             return 'Pending'                                               # fits nowhere = tracker not updated
         d['__cat'] = [category(i) for i in d.index]
         pivot = d.groupby(['Pillar', '__cat']).size().unstack(fill_value=0)
-                tail = [
+        tail = [
             COMBINED_R9,
             'Feature Dropped',
             'Training Required field Not set',
@@ -1522,7 +1522,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
             pivot = pivot.drop(columns=['Training = No'])
         pivot = pivot.reset_index()
         tr_cols  = [c for c in ['Training = Yes', 'Training = TBD', 'Training = No'] if c in pivot.columns]
-                end_cols = [
+        end_cols = [
             c for c in [
                 COMBINED_R9,
                 'Feature Dropped',
