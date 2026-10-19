@@ -1554,6 +1554,66 @@ elif selected_report == "9️⃣  Feature Overall Status":
         fig_nf.update_layout(plot_bgcolor='white', paper_bgcolor='white', margin=dict(t=60, b=80), legend=dict(orientation='h', yanchor='top', y=-0.2, xanchor='center', x=0.5, title_text=''))
         st.plotly_chart(fig_nf, use_container_width=True)
         render_pivot_table(build_pivot(df_r9_nf))
+            # Released primaries and their feature names.
+    released_primaries = primary.loc[
+        primary['__status'].eq('released (a)'),
+        group_cols + ['Feature']
+    ].rename(columns={'Feature': 'Released Primary Feature'})
+
+    # Bundled features within the selected Pillar/CDL filters.
+    selected_bundles = combined_source.loc[df_r9.index].copy()
+    selected_bundles = selected_bundles[
+        selected_bundles['__classification'].eq('combined bundled nf')
+        & selected_bundles['__status'].ne('released (a)')
+    ]
+
+    # Match each bundled feature to its released primary.
+    release_check = selected_bundles.merge(
+        released_primaries,
+        on=group_cols,
+        how='inner',
+        validate='many_to_one'
+    )
+
+    if not release_check.empty:
+        st.warning(
+            f"⚠️ {len(release_check)} bundled feature(s) are not marked "
+            "Released (A), although their primary video is released. "
+            "Review the CDL, primary feature, and bundled feature "
+            "details below."
+        )
+
+        with st.expander("View bundled features to review"):
+            release_check = release_check.rename(columns={
+                'CDL Name': 'Bundled Feature CDL',
+                'Feature': 'Bundled Feature',
+                'Feature GCC': 'Bundled Feature GCC',
+                'Final Overall Status': 'Bundled Feature Status'
+            })
+
+            check_cols = [
+                'Pillar',
+                'Bundled Feature CDL',
+                'Released Primary Feature',
+                'Bundled Feature',
+                'Bundled Feature GCC',
+                'Bundled Feature Status'
+            ]
+
+            for col in check_cols:
+                if col not in release_check.columns:
+                    release_check[col] = 'Not Set'
+
+            check_details = release_check[check_cols].copy()
+            check_details = check_details.fillna('Not Set').replace(
+                r'^\s*$', 'Not Set', regex=True
+            )
+
+            st.dataframe(
+                check_details.reset_index(drop=True),
+                use_container_width=True,
+                hide_index=True
+            )
         st.markdown('''<div style="background-color:#f8fafc; padding:10px 14px; border-radius:6px; border-left:4px solid #64748b; margin-top:4px; margin-bottom:8px; font-size:0.8rem; color:#444; line-height:1.9;">
 <b>How to read this table</b> — every feature is counted in exactly one column, so all columns add up to Total.<br>
 🟢 <b>Released (A)</b> — video is published and done.<br>
