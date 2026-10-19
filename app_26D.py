@@ -1475,7 +1475,7 @@ elif selected_report == "9️⃣  Feature Overall Status":
             if s == 'Feature Dropped' or outc[i].startswith('dropped'):
                 return 'Feature Dropped'
 
-                        is_unboxing = (
+            is_unboxing = (
                 str(d.at[i, 'Feature Category']).strip().casefold()
                 == 'unboxing'
             )
