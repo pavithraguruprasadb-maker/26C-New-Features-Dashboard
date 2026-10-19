@@ -1351,6 +1351,86 @@ elif selected_report == "9️⃣  Feature Overall Status":
         diff = (date - base).days; tier = ((diff - 1) // 7) + 1
         return f'GA+{tier}'
     df_r9 = df_filtered.copy()
+        # Identify bundled features covered by a recorded primary video.
+    # Use df so the primary is found even when another CDL is selected.
+    combined_source = df.copy()
+
+    def clean_r9(column):
+        return (
+            combined_source.get(
+                column, pd.Series('', index=combined_source.index)
+            )
+            .fillna('').astype(str).str.strip().str.casefold()
+        )
+
+    combined_source['__video'] = clean_r9('Combined Feature Video Name')
+    combined_source['__pillar'] = clean_r9('Pillar')
+    combined_source['__unboxing'] = clean_r9('Feature Category').eq('unboxing')
+    combined_source['__classification'] = clean_r9('Feature Classification')
+    combined_source['__status'] = clean_r9('Final Overall Status')
+    combined_source['__outcome'] = clean_r9('Issue Resolution Outcome')
+
+    group_cols = ['__pillar', '__unboxing', '__video']
+
+    primary = combined_source[
+        combined_source['__classification'].eq('combined primary nf')
+        & combined_source['__video'].ne('')
+        & combined_source['__pillar'].ne('')
+    ].copy()
+
+    # Do not infer coverage when multiple primaries have the same link.
+    primary = primary[
+        ~primary.duplicated(subset=group_cols, keep=False)
+    ].copy()
+
+    ready_date = pd.to_datetime(
+        primary.get(
+            'Video Ready Date', pd.Series(pd.NaT, index=primary.index)
+        ),
+        errors='coerce'
+    )
+
+    ready_stages = [
+        'in review (a)', 'in review fixes (a)',
+        'in post production (a)', 'in qa (a)', 'in qa fixes (a)',
+        'in setup (a)', 'released (a)'
+    ]
+
+    dropped = (
+        primary['__status'].eq('feature dropped')
+        | primary['__outcome'].str.contains('dropped', regex=False)
+    ) & primary['__status'].ne('released (a)')
+
+    ready_primary = primary[
+        ~dropped
+        & (
+            ready_date.ge(pd.Timestamp('2020-01-01'))
+            | primary['__status'].isin(ready_stages)
+        )
+    ]
+
+    ready_keys = set(
+        ready_primary[group_cols].itertuples(index=False, name=None)
+    )
+
+    coverage = pd.Series(
+        [
+            classification == 'combined bundled nf'
+            and (pillar, unboxing, video) in ready_keys
+            for classification, pillar, unboxing, video in
+            combined_source[
+                ['__classification', '__pillar', '__unboxing', '__video']
+            ].itertuples(index=False, name=None)
+        ],
+        index=combined_source.index,
+        dtype=bool
+    )
+
+    df_r9['Covered by Primary Video'] = coverage.reindex(
+        df_r9.index, fill_value=False
+    )
+
+    COMBINED_R9 = 'Combined Features (Covered by Primary)'
     df_r9['Training Required? '] = (df_r9['Training Required? ']
                                     .fillna('Not Set').astype(str).str.strip()
                                     .replace({'': 'Not Set', 'nan': 'Not Set'}))
