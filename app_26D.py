@@ -91,7 +91,12 @@ def load_data():
     valid_from = pd.Timestamp('2020-01-01')
     for col in ['Recording Date', 'Video Ready Date', 'Actual Release Date']:
         if col in combined.columns:
-            combined[col] = pd.to_datetime(combined[col], errors='coerce')
+            combined[col] = pd.to_datetime(
+                combined[col],
+                format='mixed',
+                dayfirst=False,
+                errors='coerce'
+            )
             combined[col] = combined[col].apply(
                 lambda x: x if pd.notna(x) and x >= valid_from else pd.NaT)
     combined = inherit_primary_dates(combined)
