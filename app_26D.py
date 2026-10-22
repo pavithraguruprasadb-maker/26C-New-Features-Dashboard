@@ -2310,8 +2310,16 @@ elif selected_report == "1️⃣3️⃣  26D New Features Release Dashboard":
 
         # Feature-level detail
         st.markdown('<div class="section-header">Feature Detail</div>', unsafe_allow_html=True)
-        nd_cols = ['Pillar', 'Product', 'Feature', 'CDL Name', 'Feature Category',
-                   'Feature Classification', 'Final Overall Status']
+        nd_cols = [
+            'Pillar',
+            'Product',
+            'Feature',
+            'CDL Name',
+            'Feature Category',
+            'Feature Classification',
+            'Combined Feature Video Name',
+            'Final Overall Status'
+        ]
         nd_cols = [c for c in nd_cols if c in df_nodate.columns]
         df_nodate_detail = df_nodate[nd_cols].reset_index(drop=True)
         st.dataframe(df_nodate_detail, use_container_width=True,
