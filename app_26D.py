@@ -1701,7 +1701,23 @@ elif selected_report == "🔟  Released Course List":
     col2.markdown(metric_card(len(df_r10_unbox), "Released Unboxing Videos"), unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
-    col_map = {'Pillar':'Pillar','Product':'Product','Module':'Module','Feature Category':'Feature Category','Tags ( AI / Redwood/AI Agent)':'Tag','DCFR Ranking':'DCFR Ranking','CDL Name':'CDL','OMBP Mapping':'OMBP','Feature':'New Feature Name','Actual Release Date':'Release Date','MyLearn Link to Video':'Link to Video','Container ID':'Course Container ID','Component ID':'Course Component ID'}
+    col_map = {
+        'Pillar': 'Pillar',
+        'Product': 'Product',
+        'Module': 'Module',
+        'Feature Category': 'Feature Category',
+        'Feature Classification': 'Feature Classification',
+        'Combined Feature Video Name': 'Combined Feature Video Name',
+        'Tags ( AI / Redwood/AI Agent)': 'Tag',
+        'DCFR Ranking': 'DCFR Ranking',
+        'CDL Name': 'CDL',
+        'OMBP Mapping': 'OMBP',
+        'Feature': 'New Feature Name',
+        'Actual Release Date': 'Release Date',
+        'MyLearn Link to Video': 'Link to Video',
+        'Container ID': 'Course Container ID',
+        'Component ID': 'Course Component ID'
+    }
     available_cols  = [c for c in col_map.keys() if c in df_r10.columns]
     df_r10_display  = df_r10[available_cols].copy().rename(columns=col_map).reset_index(drop=True)
     filter_cat = st.selectbox("Filter by Category", ['All','New Features','Unboxing'], key='sel_r10_cat')
