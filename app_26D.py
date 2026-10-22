@@ -1688,19 +1688,103 @@ elif selected_report == "9️⃣  Feature Overall Status":
             st.dataframe(det_ub.style.apply(style_r9_detail, axis=1).hide(axis='index'), use_container_width=True, column_config=col_config_compact(det_ub))
             st.download_button("⬇️ Download Unboxing Status", export_excel(det_ub), "report9_ub_status.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", key='dl_ub_status')
 # ─────────────────────────────────────────────
-# REPORT 10
+# REPORT 10: Released Course List
 # ─────────────────────────────────────────────
 elif selected_report == "🔟  Released Course List":
-    st.markdown('<div class="section-header">Released Course List — New Features & Unboxing</div>', unsafe_allow_html=True)
-    df_filtered = render_report_filters(df_filtered, 'r10', has_cdl=True)
-    df_r10       = df_filtered[df_filtered['Final Overall Status'] == 'Released (A)'].copy()
-    df_r10_nf    = df_r10[df_r10['Feature Category'] != 'Unboxing']
-    df_r10_unbox = df_r10[df_r10['Feature Category'] == 'Unboxing']
+    st.markdown(
+        '<div class="section-header">'
+        'Released Course List — New Features & Unboxing</div>',
+        unsafe_allow_html=True
+    )
+
+    df_filtered = render_report_filters(
+        df_filtered, 'r10', has_cdl=True
+    )
+
+    df_r10 = df_filtered[
+        df_filtered['Final Overall Status'] == 'Released (A)'
+    ].copy()
+
+    def clean_r10(value):
+        return '' if pd.isna(value) else str(value).strip().casefold()
+
+    def video_key_r10(row):
+        pillar = clean_r10(row.get('Pillar'))
+        video = clean_r10(row.get('Combined Feature Video Name'))
+        return (pillar, video) if pillar and video else None
+
+    shared_cols_r10 = [
+        'MyLearn Link to Video',
+        'Container ID',
+        'Component ID'
+    ]
+
+    # Search all source rows so CDL filters do not hide the primary.
+    # Check duplicate primaries regardless of their release status.
+    primary_groups_r10 = {}
+
+    for _, row in df.iterrows():
+        if (
+            clean_r10(row.get('Feature Classification'))
+            == 'combined primary nf'
+            and clean_r10(row.get('Feature Category')) != 'unboxing'
+        ):
+            key = video_key_r10(row)
+
+            if key is not None:
+                primary_groups_r10.setdefault(key, []).append(row)
+
+    # Only a unique, released primary can supply links and IDs.
+    primary_lookup_r10 = {
+        key: rows[0]
+        for key, rows in primary_groups_r10.items()
+        if len(rows) == 1
+        and clean_r10(
+            rows[0].get('Final Overall Status')
+        ) == 'released (a)'
+    }
+
+    for idx, row in df_r10.iterrows():
+        if (
+            clean_r10(row.get('Feature Classification'))
+            != 'combined bundled nf'
+            or clean_r10(row.get('Feature Category')) == 'unboxing'
+        ):
+            continue
+
+        primary_row = primary_lookup_r10.get(video_key_r10(row))
+
+        if primary_row is None:
+            continue
+
+        for col in shared_cols_r10:
+            value = primary_row.get(col)
+
+            # Blank primary values must not erase existing bundled values.
+            if pd.notna(value) and str(value).strip():
+                df_r10.at[idx, col] = value
+
+    df_r10_nf = df_r10[
+        df_r10['Feature Category'] != 'Unboxing'
+    ]
+    df_r10_unbox = df_r10[
+        df_r10['Feature Category'] == 'Unboxing'
+    ]
+
     col1, col2 = st.columns(2)
-    col1.markdown(metric_card(len(df_r10_nf), "Released New Features"), unsafe_allow_html=True)
-    col2.markdown(metric_card(len(df_r10_unbox), "Released Unboxing Videos"), unsafe_allow_html=True)
+
+    col1.markdown(
+        metric_card(len(df_r10_nf), "Released New Features"),
+        unsafe_allow_html=True
+    )
+    col2.markdown(
+        metric_card(len(df_r10_unbox), "Released Unboxing Videos"),
+        unsafe_allow_html=True
+    )
+
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("---")
+
     col_map = {
         'Pillar': 'Pillar',
         'Product': 'Product',
@@ -1718,15 +1802,116 @@ elif selected_report == "🔟  Released Course List":
         'Container ID': 'Course Container ID',
         'Component ID': 'Course Component ID'
     }
-    available_cols  = [c for c in col_map.keys() if c in df_r10.columns]
-    df_r10_display  = df_r10[available_cols].copy().rename(columns=col_map).reset_index(drop=True)
-    filter_cat = st.selectbox("Filter by Category", ['All','New Features','Unboxing'], key='sel_r10_cat')
-    if filter_cat == 'New Features': df_r10_display = df_r10_display[df_r10_display['Feature Category'] != 'Unboxing']
-    elif filter_cat == 'Unboxing': df_r10_display = df_r10_display[df_r10_display['Feature Category'] == 'Unboxing']
-    pillar_filter = st.multiselect("Filter by Pillar", options=sorted(df_r10_display['Pillar'].dropna().unique().tolist()), default=sorted(df_r10_display['Pillar'].dropna().unique().tolist()), key='sel_r10_pillar')
-    if pillar_filter: df_r10_display = df_r10_display[df_r10_display['Pillar'].isin(pillar_filter)]
-    st.dataframe(df_r10_display, use_container_width=True, column_config=col_config_compact(df_r10_display))
-    st.download_button("⬇️ Download Released Course List", export_excel(df_r10_display), "report10_released_course_list.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    available_cols = [
+        c for c in col_map if c in df_r10.columns
+    ]
+
+    df_r10_display = (
+        df_r10[available_cols]
+        .copy()
+        .rename(columns=col_map)
+        .reset_index(drop=True)
+    )
+
+    filter_cat = st.selectbox(
+        "Filter by Category",
+        ['All', 'New Features', 'Unboxing'],
+        key='sel_r10_cat'
+    )
+
+    if filter_cat == 'New Features':
+        df_r10_display = df_r10_display[
+            df_r10_display['Feature Category'] != 'Unboxing'
+        ]
+    elif filter_cat == 'Unboxing':
+        df_r10_display = df_r10_display[
+            df_r10_display['Feature Category'] == 'Unboxing'
+        ]
+
+    pillar_options = sorted(
+        df_r10_display['Pillar'].dropna().unique().tolist()
+    )
+
+    pillar_filter = st.multiselect(
+        "Filter by Pillar",
+        options=pillar_options,
+        default=pillar_options,
+        key='sel_r10_pillar'
+    )
+
+    if pillar_filter:
+        df_r10_display = df_r10_display[
+            df_r10_display['Pillar'].isin(pillar_filter)
+        ]
+
+    st.dataframe(
+        df_r10_display,
+        use_container_width=True,
+        column_config=col_config_compact(df_r10_display)
+    )
+
+    # Flag duplicate primaries affecting the currently displayed report.
+    visible_video_keys_r10 = {
+        video_key_r10(row)
+        for _, row in df_r10_display.iterrows()
+        if clean_r10(row.get('Feature Classification')) in {
+            'combined primary nf',
+            'combined bundled nf'
+        }
+        and clean_r10(row.get('Feature Category')) != 'unboxing'
+    }
+
+    duplicate_primary_rows_r10 = [
+        row
+        for key, rows in primary_groups_r10.items()
+        if len(rows) > 1 and key in visible_video_keys_r10
+        for row in rows
+    ]
+
+    if duplicate_primary_rows_r10:
+        st.warning(
+            "⚠️ Data discrepancy: more than one Combined Primary NF "
+            "exists for the same Pillar and Combined Feature Video Name. "
+            "Each combined video must have exactly one primary and may "
+            "have multiple bundled features. Links and IDs were not "
+            "copied from these ambiguous primary records."
+        )
+
+        with st.expander("View duplicate primary records"):
+            duplicate_details_r10 = pd.DataFrame(
+                duplicate_primary_rows_r10
+            )
+
+            duplicate_cols_r10 = [
+                'Pillar',
+                'Feature',
+                'Feature GCC',
+                'CDL Name',
+                'Combined Feature Video Name',
+                'Final Overall Status',
+                'MyLearn Link to Video',
+                'Container ID',
+                'Component ID'
+            ]
+
+            st.dataframe(
+                duplicate_details_r10[
+                    [
+                        c for c in duplicate_cols_r10
+                        if c in duplicate_details_r10.columns
+                    ]
+                ].reset_index(drop=True),
+                use_container_width=True,
+                hide_index=True
+            )
+
+    st.download_button(
+        "⬇️ Download Released Course List",
+        export_excel(df_r10_display),
+        "report10_released_course_list.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 # ─────────────────────────────────────────────
 # REPORT 11: Issues Tracker
